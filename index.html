@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Snake Game</title>
   <style>
     * {
@@ -19,6 +19,10 @@
       min-height: 100vh;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #eee;
+      touch-action: none;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     .game-container {
@@ -79,6 +83,82 @@
       font-size: 1rem;
       color: #ccc;
     }
+
+    .overlay.touchable {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    /* D-pad controls for touch devices */
+    .dpad {
+      display: none;
+      margin: 20px auto 0;
+      width: 180px;
+      height: 180px;
+      position: relative;
+    }
+
+    .dpad-btn {
+      position: absolute;
+      width: 56px;
+      height: 56px;
+      background: rgba(0, 212, 170, 0.15);
+      border: 2px solid #00d4aa;
+      border-radius: 12px;
+      color: #00d4aa;
+      font-size: 1.5rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s;
+    }
+
+    .dpad-btn:active {
+      background: rgba(0, 212, 170, 0.4);
+    }
+
+    .dpad-up    { top: 0; left: 50%; transform: translateX(-50%); }
+    .dpad-down  { bottom: 0; left: 50%; transform: translateX(-50%); }
+    .dpad-left  { left: 0; top: 50%; transform: translateY(-50%); }
+    .dpad-right { right: 0; top: 50%; transform: translateY(-50%); }
+
+    .pause-btn {
+      display: none;
+      margin: 12px auto 0;
+      padding: 10px 32px;
+      background: rgba(0, 212, 170, 0.15);
+      border: 2px solid #00d4aa;
+      border-radius: 12px;
+      color: #00d4aa;
+      font-size: 1rem;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .pause-btn:active {
+      background: rgba(0, 212, 170, 0.4);
+    }
+
+    @media (pointer: coarse) {
+      .dpad, .pause-btn {
+        display: block;
+      }
+      .instructions {
+        display: none;
+      }
+      .touch-instructions {
+        display: block;
+      }
+    }
+
+    .touch-instructions {
+      display: none;
+      margin-top: 14px;
+      font-size: 0.9rem;
+      color: #888;
+    }
   </style>
 </head>
 <body>
@@ -98,6 +178,16 @@
     <div class="instructions">
       Arrow keys or WASD to move &bull; P to pause
     </div>
+    <div class="touch-instructions">
+      Swipe or use D-pad to move
+    </div>
+    <div class="dpad" id="dpad">
+      <button class="dpad-btn dpad-up" data-dir="up">&#9650;</button>
+      <button class="dpad-btn dpad-down" data-dir="down">&#9660;</button>
+      <button class="dpad-btn dpad-left" data-dir="left">&#9664;</button>
+      <button class="dpad-btn dpad-right" data-dir="right">&#9654;</button>
+    </div>
+    <button class="pause-btn" id="pause-btn">Pause</button>
   </div>
 
   <script>
@@ -129,8 +219,12 @@
       scoreEl.textContent = score;
       spawnFood();
       gameState = 'waiting';
-      showOverlay('Snake', 'Press any arrow key or WASD to start');
+      showOverlay('Snake', isTouchDevice() ? 'Swipe or tap a direction to start' : 'Press any arrow key or WASD to start');
       draw();
+    }
+
+    function isTouchDevice() {
+      return window.matchMedia('(pointer: coarse)').matches;
     }
 
     function spawnFood() {
@@ -144,12 +238,17 @@
       }
     }
 
-    function showOverlay(title, message) {
+    function showOverlay(title, message, tappable) {
       overlayTitle.textContent = title;
       overlayMessage.textContent = message;
       overlay.style.display = 'flex';
-      overlay.style.width = canvas.width + 'px';
-      overlay.style.height = canvas.height + 'px';
+      overlay.style.width = canvas.offsetWidth + 'px';
+      overlay.style.height = canvas.offsetHeight + 'px';
+      if (tappable) {
+        overlay.classList.add('touchable');
+      } else {
+        overlay.classList.remove('touchable');
+      }
     }
 
     function hideOverlay() {
@@ -204,7 +303,7 @@
     function gameOver() {
       clearInterval(loopId);
       gameState = 'gameover';
-      showOverlay('Game Over', `Score: ${score} — Press any key to restart`);
+      showOverlay('Game Over', `Score: ${score} — ${isTouchDevice() ? 'Tap to restart' : 'Press any key to restart'}`, true);
     }
 
     function draw() {
@@ -317,6 +416,111 @@
           break;
       }
     }
+
+    // Touch / swipe handling
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+
+      // Need a minimum swipe distance
+      if (Math.max(absDx, absDy) < 20) return;
+
+      let dir;
+      if (absDx > absDy) {
+        dir = dx > 0 ? 'right' : 'left';
+      } else {
+        dir = dy > 0 ? 'down' : 'up';
+      }
+
+      handleDirection(dir);
+    }, { passive: false });
+
+    // Overlay tap to restart
+    overlay.addEventListener('touchend', (e) => {
+      if (gameState === 'gameover') {
+        e.preventDefault();
+        e.stopPropagation();
+        init();
+      }
+    });
+    overlay.addEventListener('click', () => {
+      if (gameState === 'gameover') init();
+    });
+
+    // D-pad buttons
+    document.querySelectorAll('.dpad-btn').forEach(btn => {
+      btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        handleDirection(btn.dataset.dir);
+      }, { passive: false });
+      btn.addEventListener('click', () => {
+        handleDirection(btn.dataset.dir);
+      });
+    });
+
+    // Pause button
+    document.getElementById('pause-btn').addEventListener('click', () => {
+      if (gameState === 'running') {
+        gameState = 'paused';
+        clearInterval(loopId);
+        showOverlay('Paused', 'Tap pause to resume');
+      } else if (gameState === 'paused') {
+        gameState = 'running';
+        hideOverlay();
+        loopId = setInterval(tick, TICK_RATE);
+      }
+    });
+
+    function handleDirection(dir) {
+      if (gameState === 'gameover') {
+        init();
+        return;
+      }
+
+      const keyMap = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright' };
+      const key = keyMap[dir];
+      if (!key) return;
+
+      if (gameState === 'waiting') {
+        setDirection(key);
+        startGame();
+        return;
+      }
+
+      if (gameState === 'running') {
+        setDirection(key);
+      }
+    }
+
+    // Responsive canvas sizing
+    function resizeCanvas() {
+      const maxSize = Math.min(window.innerWidth - 32, window.innerHeight - 300, 500);
+      const size = Math.max(280, Math.floor(maxSize / TILE_COUNT) * TILE_COUNT);
+      canvas.style.width = size + 'px';
+      canvas.style.height = size + 'px';
+      // Update overlay to match
+      if (overlay.style.display === 'flex') {
+        overlay.style.width = size + 'px';
+        overlay.style.height = size + 'px';
+      }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
     // Start
     init();
