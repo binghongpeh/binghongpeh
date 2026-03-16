@@ -3,527 +3,568 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Snake Game</title>
+  <title>Hay Day Farm</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #1a1a2e;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      background: linear-gradient(180deg, #87CEEB 0%, #87CEEB 40%, #5D8A3C 40%);
       min-height: 100vh;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #eee;
-      touch-action: none;
-      overflow: hidden;
-      -webkit-user-select: none;
+      color: #3d2b1f;
       user-select: none;
+      -webkit-user-select: none;
     }
 
-    .game-container {
-      text-align: center;
-    }
-
-    h1 {
-      margin-bottom: 10px;
-      font-size: 2rem;
-      color: #00d4aa;
-    }
-
-    .score-board {
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #8B4513, #A0522D);
+      border-bottom: 4px solid #5C2E00;
+      padding: 10px 16px;
       display: flex;
-      justify-content: center;
-      gap: 40px;
-      margin-bottom: 12px;
-      font-size: 1.1rem;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
     }
 
-    .score-board span {
-      color: #00d4aa;
+    header h1 {
+      font-size: 1.4rem;
+      color: #FFE066;
+      text-shadow: 1px 1px 2px #5C2E00;
+      letter-spacing: 1px;
+    }
+
+    .coins-display {
+      background: rgba(0,0,0,0.25);
+      border: 2px solid #FFD700;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #FFD700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* ── Layout ── */
+    .game-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 10px;
+      gap: 12px;
+    }
+
+    /* ── Farm Grid ── */
+    .farm-container {
+      background: #6B4226;
+      border: 4px solid #4A2E12;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+
+    .farm-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+
+    .tile {
+      width: 66px;
+      height: 66px;
+      background: #8B6347;
+      border: 2px solid #5C3D20;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tile:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+    .tile:active { transform: scale(0.97); }
+
+    .tile.empty { background: #8B6347; }
+    .tile.empty::after {
+      content: '+';
+      font-size: 1.6rem;
+      color: rgba(255,255,255,0.3);
       font-weight: bold;
     }
 
-    canvas {
-      border: 2px solid #00d4aa;
-      border-radius: 4px;
-      background: #16213e;
-      display: block;
-      margin: 0 auto;
+    .tile.growing { background: #5A7C3A; border-color: #3D5A27; }
+    .tile.ready {
+      background: #6AB04C;
+      border-color: #4A8B2E;
+      animation: readyPulse 1.2s ease-in-out infinite;
     }
 
-    .instructions {
-      margin-top: 14px;
-      font-size: 0.9rem;
-      color: #888;
+    @keyframes readyPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(106,176,76,0.5); }
+      50%       { box-shadow: 0 0 0 6px rgba(106,176,76,0); }
     }
 
-    .overlay {
+    .tile-emoji { font-size: 1.8rem; line-height: 1; }
+    .tile-label {
+      font-size: 0.55rem;
+      font-weight: bold;
+      color: rgba(255,255,255,0.85);
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    .progress-wrap {
       position: absolute;
+      bottom: 4px;
+      left: 6px;
+      right: 6px;
+      height: 4px;
+      background: rgba(0,0,0,0.25);
+      border-radius: 2px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #FFE066;
+      border-radius: 2px;
+      transition: width 0.4s linear;
+    }
+
+    /* ── Bottom Panels ── */
+    .panels {
+      width: 100%;
+      max-width: 380px;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(0, 0, 0, 0.75);
-      border-radius: 4px;
-      z-index: 10;
-      pointer-events: none;
+      gap: 10px;
     }
 
-    .overlay h2 {
-      font-size: 1.8rem;
+    .panel {
+      background: linear-gradient(135deg, #DEB887, #C8A06E);
+      border: 3px solid #8B6347;
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+    }
+
+    .panel-title {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #5C3D20;
+      text-transform: uppercase;
+      letter-spacing: 1px;
       margin-bottom: 8px;
     }
 
-    .overlay p {
-      font-size: 1rem;
-      color: #ccc;
+    /* ── Seed Shop ── */
+    .crop-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
-    .overlay.touchable {
-      pointer-events: auto;
+    .crop-btn {
+      flex: 1;
+      min-width: 72px;
+      background: #FFF8E7;
+      border: 2px solid #8B6347;
+      border-radius: 10px;
+      padding: 7px 4px;
       cursor: pointer;
-    }
-
-    /* D-pad controls for touch devices */
-    .dpad {
-      display: none;
-      margin: 20px auto 0;
-      width: 180px;
-      height: 180px;
+      text-align: center;
+      transition: background 0.1s, transform 0.1s;
       position: relative;
     }
 
-    .dpad-btn {
+    .crop-btn:hover { background: #FFECB3; transform: translateY(-2px); }
+    .crop-btn:active { transform: translateY(0); }
+    .crop-btn.selected {
+      border-color: #FF8C00;
+      background: #FFF0C0;
+      box-shadow: 0 0 0 2px #FF8C00;
+    }
+    .crop-btn.disabled { opacity: 0.4; cursor: default; }
+    .crop-btn .crop-emoji { font-size: 1.5rem; display: block; }
+    .crop-btn .crop-name { font-size: 0.65rem; font-weight: bold; color: #5C3D20; }
+    .crop-btn .crop-cost { font-size: 0.6rem; color: #8B4513; }
+    .crop-btn .crop-seed-count {
       position: absolute;
-      width: 56px;
-      height: 56px;
-      background: rgba(0, 212, 170, 0.15);
-      border: 2px solid #00d4aa;
-      border-radius: 12px;
-      color: #00d4aa;
-      font-size: 1.5rem;
+      top: 3px;
+      right: 5px;
+      font-size: 0.6rem;
+      font-weight: bold;
+      color: #4A8B2E;
+    }
+
+    /* ── Buy Seeds ── */
+    .buy-row {
       display: flex;
-      justify-content: center;
-      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .buy-btn {
+      flex: 1;
+      min-width: 72px;
+      background: #4A8B2E;
+      border: 2px solid #2E5C1A;
+      border-radius: 8px;
+      padding: 6px 4px;
       cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: bold;
+      text-align: center;
+      transition: background 0.1s, transform 0.1s;
+    }
+
+    .buy-btn:hover { background: #5DAB38; transform: translateY(-1px); }
+    .buy-btn:active { transform: translateY(0); }
+    .buy-btn.cant-afford { opacity: 0.4; cursor: default; }
+
+    /* ── Inventory / Sell ── */
+    .inv-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .inv-item {
+      flex: 1;
+      min-width: 72px;
+      background: #FFF8E7;
+      border: 2px solid #8B6347;
+      border-radius: 10px;
+      padding: 7px 4px;
+      text-align: center;
+    }
+
+    .inv-item .inv-emoji { font-size: 1.4rem; display: block; }
+    .inv-item .inv-name  { font-size: 0.6rem; font-weight: bold; color: #5C3D20; }
+    .inv-item .inv-count { font-size: 0.7rem; color: #8B4513; font-weight: bold; }
+
+    .sell-btn {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      background: #CC6600;
+      border: 2px solid #8B4500;
+      border-radius: 8px;
+      color: #FFE066;
+      font-weight: bold;
+      font-size: 0.85rem;
+      padding: 8px;
+      cursor: pointer;
       transition: background 0.1s;
     }
 
-    .dpad-btn:active {
-      background: rgba(0, 212, 170, 0.4);
-    }
+    .sell-btn:hover { background: #E07000; }
+    .sell-btn.cant-sell { opacity: 0.4; cursor: default; }
 
-    .dpad-up    { top: 0; left: 50%; transform: translateX(-50%); }
-    .dpad-down  { bottom: 0; left: 50%; transform: translateX(-50%); }
-    .dpad-left  { left: 0; top: 50%; transform: translateY(-50%); }
-    .dpad-right { right: 0; top: 50%; transform: translateY(-50%); }
-
-    .pause-btn {
-      display: none;
-      margin: 12px auto 0;
-      padding: 10px 32px;
-      background: rgba(0, 212, 170, 0.15);
-      border: 2px solid #00d4aa;
-      border-radius: 12px;
-      color: #00d4aa;
-      font-size: 1rem;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .pause-btn:active {
-      background: rgba(0, 212, 170, 0.4);
-    }
-
-    @media (pointer: coarse) {
-      .dpad, .pause-btn {
-        display: block;
-      }
-      .instructions {
-        display: none;
-      }
-      .touch-instructions {
-        display: block;
-      }
-    }
-
-    .touch-instructions {
-      display: none;
-      margin-top: 14px;
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: rgba(40, 20, 0, 0.85);
+      color: #FFE066;
+      padding: 10px 22px;
+      border-radius: 20px;
       font-size: 0.9rem;
-      color: #888;
+      font-weight: bold;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 380px) {
+      .tile { width: 58px; height: 58px; }
+      .tile-emoji { font-size: 1.5rem; }
     }
   </style>
 </head>
 <body>
-  <div class="game-container">
-    <h1>Snake Game</h1>
-    <div class="score-board">
-      <div>Score: <span id="score">0</span></div>
-      <div>High Score: <span id="high-score">0</span></div>
-    </div>
-    <div style="position: relative; display: inline-block;">
-      <canvas id="game-canvas" width="400" height="400"></canvas>
-      <div class="overlay" id="overlay">
-        <h2 id="overlay-title">Snake</h2>
-        <p id="overlay-message">Press any arrow key or WASD to start</p>
-      </div>
-    </div>
-    <div class="instructions">
-      Arrow keys or WASD to move &bull; P to pause
-    </div>
-    <div class="touch-instructions">
-      Swipe or use D-pad to move
-    </div>
-    <div class="dpad" id="dpad">
-      <button class="dpad-btn dpad-up" data-dir="up">&#9650;</button>
-      <button class="dpad-btn dpad-down" data-dir="down">&#9660;</button>
-      <button class="dpad-btn dpad-left" data-dir="left">&#9664;</button>
-      <button class="dpad-btn dpad-right" data-dir="right">&#9654;</button>
-    </div>
-    <button class="pause-btn" id="pause-btn">Pause</button>
+
+<header>
+  <h1>🌻 Hay Day Farm</h1>
+  <div class="coins-display">💰 <span id="coins-val">50</span></div>
+</header>
+
+<div class="game-wrapper">
+
+  <!-- Farm -->
+  <div class="farm-container">
+    <div class="farm-grid" id="farm-grid"></div>
   </div>
 
-  <script>
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
-    const overlay = document.getElementById('overlay');
-    const overlayTitle = document.getElementById('overlay-title');
-    const overlayMessage = document.getElementById('overlay-message');
-    const scoreEl = document.getElementById('score');
-    const highScoreEl = document.getElementById('high-score');
+  <div class="panels">
 
-    const GRID_SIZE = 20;
-    const TILE_COUNT = canvas.width / GRID_SIZE;
-    const TICK_RATE = 100; // ms per game tick
+    <!-- Seed Selection -->
+    <div class="panel">
+      <div class="panel-title">🌱 Select Seed to Plant</div>
+      <div class="crop-list" id="crop-list"></div>
+    </div>
 
-    let snake, direction, nextDirection, food, score, highScore, gameState, loopId;
+    <!-- Buy Seeds -->
+    <div class="panel">
+      <div class="panel-title">🏪 Buy Seeds</div>
+      <div class="buy-row" id="buy-row"></div>
+    </div>
 
-    // Game states: 'waiting', 'running', 'paused', 'gameover'
-    highScore = parseInt(localStorage.getItem('snakeHighScore') || '0', 10);
-    highScoreEl.textContent = highScore;
+    <!-- Inventory & Sell -->
+    <div class="panel">
+      <div class="panel-title">🎒 Harvest Inventory</div>
+      <div class="inv-list" id="inv-list"></div>
+      <button class="sell-btn" id="sell-all-btn" onclick="sellAll()">Sell All Crops</button>
+    </div>
 
-    function init() {
-      snake = [
-        { x: Math.floor(TILE_COUNT / 2), y: Math.floor(TILE_COUNT / 2) }
-      ];
-      direction = { x: 0, y: 0 };
-      nextDirection = { x: 0, y: 0 };
-      score = 0;
-      scoreEl.textContent = score;
-      spawnFood();
-      gameState = 'waiting';
-      showOverlay('Snake', isTouchDevice() ? 'Swipe or tap a direction to start' : 'Press any arrow key or WASD to start');
-      draw();
-    }
+  </div>
+</div>
 
-    function isTouchDevice() {
-      return window.matchMedia('(pointer: coarse)').matches;
-    }
+<div id="toast"></div>
 
-    function spawnFood() {
-      while (true) {
-        food = {
-          x: Math.floor(Math.random() * TILE_COUNT),
-          y: Math.floor(Math.random() * TILE_COUNT)
-        };
-        // Make sure food doesn't spawn on the snake
-        if (!snake.some(seg => seg.x === food.x && seg.y === food.y)) break;
-      }
-    }
+<script>
+  // ── Crop definitions ──────────────────────────────────────────────────────
+  const CROPS = {
+    wheat:      { name: 'Wheat',      emoji: '🌾', stages: ['🌱','🌿','🌾'], growTime: 15000, sellPrice: 8,  seedCost: 3  },
+    corn:       { name: 'Corn',       emoji: '🌽', stages: ['🌱','🌿','🌽'], growTime: 30000, sellPrice: 20, seedCost: 8  },
+    carrot:     { name: 'Carrot',     emoji: '🥕', stages: ['🌱','🌿','🥕'], growTime: 60000, sellPrice: 40, seedCost: 15 },
+    strawberry: { name: 'Strawberry', emoji: '🍓', stages: ['🌱','🌿','🍓'], growTime: 90000, sellPrice: 65, seedCost: 25 },
+  };
 
-    function showOverlay(title, message, tappable) {
-      overlayTitle.textContent = title;
-      overlayMessage.textContent = message;
-      overlay.style.display = 'flex';
-      overlay.style.width = canvas.offsetWidth + 'px';
-      overlay.style.height = canvas.offsetHeight + 'px';
-      if (tappable) {
-        overlay.classList.add('touchable');
+  // ── Game state ────────────────────────────────────────────────────────────
+  const ROWS = 4, COLS = 5;
+  let state = {
+    coins: 50,
+    seeds: { wheat: 5, corn: 0, carrot: 0, strawberry: 0 },
+    inventory: { wheat: 0, corn: 0, carrot: 0, strawberry: 0 },
+    farm: Array(ROWS * COLS).fill(null),   // null | { type, plantedAt }
+    selected: 'wheat',
+  };
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function getProgress(cell) {
+    if (!cell) return 0;
+    const elapsed = Date.now() - cell.plantedAt;
+    return Math.min(1, elapsed / CROPS[cell.type].growTime);
+  }
+
+  function getStage(cell) {
+    const p = getProgress(cell);
+    if (p >= 1) return 2;
+    if (p >= 0.5) return 1;
+    return 0;
+  }
+
+  // ── Render Farm ───────────────────────────────────────────────────────────
+  function renderFarm() {
+    const grid = document.getElementById('farm-grid');
+    grid.innerHTML = '';
+    state.farm.forEach((cell, i) => {
+      const div = document.createElement('div');
+      div.className = 'tile';
+      div.addEventListener('click', () => handleTileClick(i));
+
+      if (!cell) {
+        div.classList.add('empty');
       } else {
-        overlay.classList.remove('touchable');
-      }
-    }
+        const progress = getProgress(cell);
+        const ready = progress >= 1;
+        div.classList.add(ready ? 'ready' : 'growing');
 
-    function hideOverlay() {
-      overlay.style.display = 'none';
-    }
+        const stage = getStage(cell);
+        const emoji = CROPS[cell.type].stages[stage];
 
-    function startGame() {
-      gameState = 'running';
-      hideOverlay();
-      loopId = setInterval(tick, TICK_RATE);
-    }
-
-    function tick() {
-      if (gameState !== 'running') return;
-
-      direction = { ...nextDirection };
-
-      const head = {
-        x: snake[0].x + direction.x,
-        y: snake[0].y + direction.y
-      };
-
-      // Wall collision
-      if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
-        return gameOver();
+        div.innerHTML = `
+          <span class="tile-emoji">${emoji}</span>
+          <span class="tile-label">${ready ? 'HARVEST!' : CROPS[cell.type].name}</span>
+          ${!ready ? `<div class="progress-wrap"><div class="progress-bar" style="width:${Math.round(progress*100)}%"></div></div>` : ''}
+        `;
       }
 
-      // Self collision
-      if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
-        return gameOver();
-      }
-
-      snake.unshift(head);
-
-      // Eat food
-      if (head.x === food.x && head.y === food.y) {
-        score++;
-        scoreEl.textContent = score;
-        if (score > highScore) {
-          highScore = score;
-          highScoreEl.textContent = highScore;
-          localStorage.setItem('snakeHighScore', highScore);
-        }
-        spawnFood();
-      } else {
-        snake.pop();
-      }
-
-      draw();
-    }
-
-    function gameOver() {
-      clearInterval(loopId);
-      gameState = 'gameover';
-      showOverlay('Game Over', `Score: ${score} — ${isTouchDevice() ? 'Tap to restart' : 'Press any key to restart'}`, true);
-    }
-
-    function draw() {
-      // Background
-      ctx.fillStyle = '#16213e';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Grid lines (subtle)
-      ctx.strokeStyle = '#1a2744';
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i <= TILE_COUNT; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i * GRID_SIZE, 0);
-        ctx.lineTo(i * GRID_SIZE, canvas.height);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, i * GRID_SIZE);
-        ctx.lineTo(canvas.width, i * GRID_SIZE);
-        ctx.stroke();
-      }
-
-      // Food
-      ctx.fillStyle = '#ff6b6b';
-      ctx.shadowColor = '#ff6b6b';
-      ctx.shadowBlur = 8;
-      roundRect(food.x * GRID_SIZE + 1, food.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2, 4);
-      ctx.shadowBlur = 0;
-
-      // Snake
-      snake.forEach((seg, i) => {
-        const ratio = 1 - (i / snake.length) * 0.5;
-        const g = Math.floor(212 * ratio);
-        const b = Math.floor(170 * ratio);
-        ctx.fillStyle = `rgb(0, ${g}, ${b})`;
-        if (i === 0) {
-          ctx.shadowColor = '#00d4aa';
-          ctx.shadowBlur = 6;
-        }
-        roundRect(seg.x * GRID_SIZE + 1, seg.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2, 4);
-        if (i === 0) ctx.shadowBlur = 0;
-      });
-    }
-
-    function roundRect(x, y, w, h, r) {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Input handling
-    document.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      const directionKeys = ['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'];
-
-      if (gameState === 'gameover') {
-        init();
-        return;
-      }
-
-      if (key === 'p' && (gameState === 'running' || gameState === 'paused')) {
-        if (gameState === 'running') {
-          gameState = 'paused';
-          clearInterval(loopId);
-          showOverlay('Paused', 'Press P to resume');
-        } else {
-          gameState = 'running';
-          hideOverlay();
-          loopId = setInterval(tick, TICK_RATE);
-        }
-        return;
-      }
-
-      if (gameState === 'waiting' && directionKeys.includes(key)) {
-        setDirection(key);
-        startGame();
-        return;
-      }
-
-      if (gameState === 'running') {
-        setDirection(key);
-      }
+      grid.appendChild(div);
     });
+  }
 
-    function setDirection(key) {
-      switch (key) {
-        case 'arrowup':
-        case 'w':
-          if (direction.y !== 1) nextDirection = { x: 0, y: -1 };
-          break;
-        case 'arrowdown':
-        case 's':
-          if (direction.y !== -1) nextDirection = { x: 0, y: 1 };
-          break;
-        case 'arrowleft':
-        case 'a':
-          if (direction.x !== 1) nextDirection = { x: -1, y: 0 };
-          break;
-        case 'arrowright':
-        case 'd':
-          if (direction.x !== -1) nextDirection = { x: 1, y: 0 };
-          break;
-      }
-    }
+  // ── Render UI Panels ──────────────────────────────────────────────────────
+  function renderPanels() {
+    // Coins
+    document.getElementById('coins-val').textContent = state.coins;
 
-    // Touch / swipe handling
-    let touchStartX = 0;
-    let touchStartY = 0;
-
-    canvas.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      const touch = e.changedTouches[0];
-      const dx = touch.clientX - touchStartX;
-      const dy = touch.clientY - touchStartY;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-
-      // Need a minimum swipe distance
-      if (Math.max(absDx, absDy) < 20) return;
-
-      let dir;
-      if (absDx > absDy) {
-        dir = dx > 0 ? 'right' : 'left';
-      } else {
-        dir = dy > 0 ? 'down' : 'up';
-      }
-
-      handleDirection(dir);
-    }, { passive: false });
-
-    // Overlay tap to restart
-    overlay.addEventListener('touchend', (e) => {
-      if (gameState === 'gameover') {
-        e.preventDefault();
-        e.stopPropagation();
-        init();
-      }
-    });
-    overlay.addEventListener('click', () => {
-      if (gameState === 'gameover') init();
-    });
-
-    // D-pad buttons
-    document.querySelectorAll('.dpad-btn').forEach(btn => {
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        handleDirection(btn.dataset.dir);
-      }, { passive: false });
+    // Seed selector
+    const cropList = document.getElementById('crop-list');
+    cropList.innerHTML = '';
+    Object.entries(CROPS).forEach(([key, crop]) => {
+      const btn = document.createElement('div');
+      btn.className = 'crop-btn' + (state.selected === key ? ' selected' : '') + (state.seeds[key] === 0 ? ' disabled' : '');
+      btn.innerHTML = `
+        <span class="crop-seed-count">${state.seeds[key]}</span>
+        <span class="crop-emoji">${crop.emoji}</span>
+        <span class="crop-name">${crop.name}</span>
+        <span class="crop-cost">${crop.growTime/1000}s grow</span>
+      `;
       btn.addEventListener('click', () => {
-        handleDirection(btn.dataset.dir);
+        state.selected = key;
+        renderPanels();
       });
+      cropList.appendChild(btn);
     });
 
-    // Pause button
-    document.getElementById('pause-btn').addEventListener('click', () => {
-      if (gameState === 'running') {
-        gameState = 'paused';
-        clearInterval(loopId);
-        showOverlay('Paused', 'Tap pause to resume');
-      } else if (gameState === 'paused') {
-        gameState = 'running';
-        hideOverlay();
-        loopId = setInterval(tick, TICK_RATE);
+    // Buy seeds
+    const buyRow = document.getElementById('buy-row');
+    buyRow.innerHTML = '';
+    Object.entries(CROPS).forEach(([key, crop]) => {
+      const canAfford = state.coins >= crop.seedCost;
+      const btn = document.createElement('button');
+      btn.className = 'buy-btn' + (!canAfford ? ' cant-afford' : '');
+      btn.innerHTML = `${crop.emoji} x5<br>💰${crop.seedCost*5}`;
+      btn.addEventListener('click', () => {
+        if (state.coins < crop.seedCost * 5) { toast('Not enough coins!'); return; }
+        state.coins -= crop.seedCost * 5;
+        state.seeds[key] += 5;
+        toast(`Bought 5 ${crop.name} seeds!`);
+        renderPanels();
+      });
+      buyRow.appendChild(btn);
+    });
+
+    // Inventory
+    const invList = document.getElementById('inv-list');
+    invList.innerHTML = '';
+    Object.entries(CROPS).forEach(([key, crop]) => {
+      const div = document.createElement('div');
+      div.className = 'inv-item';
+      div.innerHTML = `
+        <span class="inv-emoji">${crop.emoji}</span>
+        <span class="inv-name">${crop.name}</span>
+        <span class="inv-count">x${state.inventory[key]}</span>
+      `;
+      invList.appendChild(div);
+    });
+
+    // Sell button
+    const total = Object.values(state.inventory).reduce((a,b)=>a+b,0);
+    const sellBtn = document.getElementById('sell-all-btn');
+    if (total === 0) {
+      sellBtn.classList.add('cant-sell');
+      sellBtn.textContent = 'Nothing to Sell';
+    } else {
+      sellBtn.classList.remove('cant-sell');
+      const earnings = Object.entries(state.inventory).reduce((sum,[k,v]) => sum + v * CROPS[k].sellPrice, 0);
+      sellBtn.textContent = `Sell All for 💰${earnings}`;
+    }
+  }
+
+  // ── Tile click ────────────────────────────────────────────────────────────
+  function handleTileClick(i) {
+    const cell = state.farm[i];
+
+    if (!cell) {
+      // Plant
+      if (state.seeds[state.selected] <= 0) {
+        toast(`No ${CROPS[state.selected].name} seeds! Buy more.`);
+        return;
       }
-    });
+      state.seeds[state.selected]--;
+      state.farm[i] = { type: state.selected, plantedAt: Date.now() };
+      toast(`Planted ${CROPS[state.selected].name}!`);
+      renderFarm();
+      renderPanels();
+    } else {
+      // Harvest if ready
+      const progress = getProgress(cell);
+      if (progress < 1) {
+        const remaining = Math.ceil((CROPS[cell.type].growTime * (1 - progress)) / 1000);
+        toast(`Still growing… ${remaining}s left`);
+        return;
+      }
+      state.inventory[cell.type]++;
+      state.farm[i] = null;
+      toast(`Harvested ${CROPS[cell.type].name}! 🎉`);
+      renderFarm();
+      renderPanels();
+    }
+  }
 
-    function handleDirection(dir) {
-      if (gameState === 'gameover') {
-        init();
+  // ── Sell all ──────────────────────────────────────────────────────────────
+  function sellAll() {
+    const total = Object.values(state.inventory).reduce((a,b)=>a+b,0);
+    if (total === 0) { toast('Nothing to sell!'); return; }
+    let earnings = 0;
+    Object.entries(state.inventory).forEach(([k,v]) => {
+      earnings += v * CROPS[k].sellPrice;
+      state.inventory[k] = 0;
+    });
+    state.coins += earnings;
+    toast(`Sold everything for 💰${earnings}!`);
+    renderFarm();
+    renderPanels();
+  }
+
+  // ── Game loop ─────────────────────────────────────────────────────────────
+  function gameLoop() {
+    // Re-render farm tiles (progress bars + stage transitions)
+    const tiles = document.querySelectorAll('.tile');
+    state.farm.forEach((cell, i) => {
+      if (!cell) return;
+      const progress = getProgress(cell);
+      const ready = progress >= 1;
+      const tile = tiles[i];
+      if (!tile) return;
+
+      // Check if class needs updating
+      const wasReady = tile.classList.contains('ready');
+      if (ready && !wasReady) {
+        tile.className = 'tile ready';
+        const emoji = CROPS[cell.type].stages[2];
+        tile.innerHTML = `
+          <span class="tile-emoji">${emoji}</span>
+          <span class="tile-label">HARVEST!</span>
+        `;
         return;
       }
 
-      const keyMap = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright' };
-      const key = keyMap[dir];
-      if (!key) return;
-
-      if (gameState === 'waiting') {
-        setDirection(key);
-        startGame();
-        return;
+      if (!ready) {
+        const stage = getStage(cell);
+        const emoji = CROPS[cell.type].stages[stage];
+        const progBar = tile.querySelector('.progress-bar');
+        if (progBar) progBar.style.width = Math.round(progress*100) + '%';
+        const emojiEl = tile.querySelector('.tile-emoji');
+        if (emojiEl && emojiEl.textContent !== emoji) {
+          emojiEl.textContent = emoji;
+        }
       }
+    });
+  }
 
-      if (gameState === 'running') {
-        setDirection(key);
-      }
-    }
-
-    // Responsive canvas sizing
-    function resizeCanvas() {
-      const maxSize = Math.min(window.innerWidth - 32, window.innerHeight - 300, 500);
-      const size = Math.max(280, Math.floor(maxSize / TILE_COUNT) * TILE_COUNT);
-      canvas.style.width = size + 'px';
-      canvas.style.height = size + 'px';
-      // Update overlay to match
-      if (overlay.style.display === 'flex') {
-        overlay.style.width = size + 'px';
-        overlay.style.height = size + 'px';
-      }
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    // Start
-    init();
-  </script>
+  // ── Init ──────────────────────────────────────────────────────────────────
+  renderFarm();
+  renderPanels();
+  setInterval(gameLoop, 500);
+</script>
 </body>
 </html>
