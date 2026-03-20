@@ -330,7 +330,7 @@ let targetMin  = 0;   // 0-719 (12 h × 60)
 let currentMin = 0;
 let isDragging = false;
 let hasMoved   = false;
-const TOLERANCE = 3;  // ±3 minutes accepted
+const TOLERANCE = 0;  // exact minute match required
 
 // ─── Clock SVG ───────────────────────────────────────────────────────────────
 const svg  = document.getElementById('clock-svg');
