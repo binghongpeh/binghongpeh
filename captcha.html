@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clock CAPTCHA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #eaf4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+
+    .captcha-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 28px 20px;
+      width: 340px;
+      box-shadow: 0 4px 28px rgba(0,0,0,0.12);
+      text-align: center;
+    }
+
+    /* Shield icon */
+    .shield-wrap {
+      width: 62px;
+      height: 62px;
+      background: #27706b;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .shield-wrap svg { width: 30px; height: 30px; fill: white; }
+
+    h1 { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 5px; }
+    .subtitle { font-size: 13px; color: #999; margin-bottom: 18px; }
+    .set-label { font-size: 13px; color: #666; margin-bottom: 8px; }
+
+    /* Time hint box */
+    .hint-box {
+      background: #d6f0ec;
+      border-radius: 10px;
+      padding: 12px 32px;
+      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hint-box::before,
+    .hint-box::after {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 28px;
+      font-weight: 900;
+      color: #a8d8d2;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .hint-box::before { content: 'S'; left: 8px; }
+    .hint-box::after  { content: 'G'; right: 8px; }
+    .hint-en {
+      display: block;
+      font-size: 19px;
+      font-weight: 700;
+      color: #1a5252;
+    }
+    .hint-th {
+      display: block;
+      font-size: 13px;
+      color: #2a8a8a;
+      margin-top: 3px;
+    }
+
+    /* Analog clock */
+    .clock-wrap { display: flex; justify-content: center; margin-bottom: 8px; }
+    #clock-svg { width: 185px; height: 185px; }
+
+    .digital { font-size: 14px; color: #777; margin-bottom: 16px; letter-spacing: 1px; }
+
+    /* Slider */
+    .slider-track {
+      position: relative;
+      height: 50px;
+      background: #d6f0ec;
+      border-radius: 25px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .slider-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: #b5e3dc;
+      border-radius: 25px;
+      width: 25px; /* equals button width, updated by JS */
+      pointer-events: none;
+    }
+    .slider-btn {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 50px;
+      height: 50px;
+      background: #27a99a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.22);
+      z-index: 2;
+      touch-action: none;
+    }
+    .slider-btn:active { cursor: grabbing; }
+    .slider-btn svg { width: 24px; height: 24px; fill: white; }
+
+    .slider-status {
+      font-size: 13px;
+      color: #27a99a;
+      margin-bottom: 14px;
+      min-height: 18px;
+    }
+
+    /* Verify button */
+    .verify-btn {
+      width: 100%;
+      padding: 15px;
+      background: #27a99a;
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      letter-spacing: 0.5px;
+    }
+    .verify-btn:hover { background: #1f8f82; }
+    .verify-btn:active { background: #1a7a6e; }
+
+    /* Bottom controls */
+    .bottom-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: 1.5px solid #ccc;
+      border-radius: 50%;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .icon-btn:hover { background: #f5f5f5; }
+    .icon-btn svg { width: 16px; height: 16px; stroke: #666; fill: none; stroke-width: 2; }
+
+    .protect-note { font-size: 11px; color: #bbb; margin-top: 8px; }
+
+    /* Result overlay */
+    .result-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    .result-overlay.show { display: flex; }
+    .result-box {
+      background: white;
+      border-radius: 18px;
+      padding: 36px 32px;
+      text-align: center;
+      width: 280px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .result-icon { font-size: 52px; margin-bottom: 12px; }
+    .result-title { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .result-msg { font-size: 14px; color: #777; margin-bottom: 22px; line-height: 1.5; }
+    .result-ok {
+      padding: 10px 28px;
+      background: #27a99a;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .result-ok:hover { background: #1f8f82; }
+  </style>
+</head>
+<body>
+
+<div class="captcha-card">
+  <!-- Header -->
+  <div class="shield-wrap">
+    <svg viewBox="0 0 24 24">
+      <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+    </svg>
+  </div>
+  <h1>Verify You Are Human</h1>
+  <p class="subtitle">Complete the challenge below to continue.</p>
+
+  <!-- Hint -->
+  <p class="set-label">Set the clock to</p>
+  <div class="hint-box">
+    <span class="hint-en" id="hint-en">Twelve o'clock</span>
+    <span class="hint-th" id="hint-th">สิบสองโมง</span>
+  </div>
+
+  <!-- Analog clock -->
+  <div class="clock-wrap">
+    <svg id="clock-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div class="digital" id="digital">12:00</div>
+
+  <!-- Slider -->
+  <div class="slider-track" id="slider-track">
+    <div class="slider-fill" id="slider-fill"></div>
+    <div class="slider-btn" id="slider-btn" tabindex="0" aria-label="Drag to set clock time">
+      <!-- Clock icon -->
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10
+                 10-4.48 10-10S17.52 2 12 2zm0 18
+                 c-4.41 0-8-3.59-8-8s3.59-8 8-8
+                 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6
+                 l5.25 3.15.75-1.23-4.5-2.67V7z"/>
+      </svg>
+    </div>
+  </div>
+  <div class="slider-status" id="slider-status">Drag the slider to set the time</div>
+
+  <button class="verify-btn" id="verify-btn">Verify</button>
+
+  <div class="bottom-row">
+    <button class="icon-btn" id="refresh-btn" title="New challenge">
+      <!-- Refresh icon -->
+      <svg viewBox="0 0 24 24">
+        <polyline points="23 4 23 10 17 10"/>
+        <polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10
+                 M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="info-btn" title="About this verification">
+      <!-- Info icon -->
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </button>
+  </div>
+  <p class="protect-note">This verification helps protect against automated access.</p>
+</div>
+
+<!-- Result overlay -->
+<div class="result-overlay" id="result-overlay">
+  <div class="result-box">
+    <div class="result-icon" id="result-icon">✅</div>
+    <div class="result-title" id="result-title">Verified!</div>
+    <div class="result-msg" id="result-msg">You have been verified as human.</div>
+    <button class="result-ok" id="result-ok">OK</button>
+  </div>
+</div>
+
+<script>
+// ─── English number words ────────────────────────────────────────────────────
+const EN_ONES = [
+  '', 'one','two','three','four','five','six','seven','eight','nine','ten',
+  'eleven','twelve','thirteen','fourteen','fifteen','sixteen',
+  'seventeen','eighteen','nineteen'
+];
+const EN_TENS = ['','','twenty','thirty','forty','fifty'];
+
+function numToEn(n) {
+  if (n < 20) return EN_ONES[n];
+  const t = Math.floor(n / 10), o = n % 10;
+  return o === 0 ? EN_TENS[t] : EN_TENS[t] + '-' + EN_ONES[o];
+}
+
+function timeToEn(h, m) {
+  const hWord = EN_ONES[h] || 'twelve'; // h is 1-12
+  if (m === 0) return cap(hWord) + " o'clock";
+  return cap(hWord) + ' ' + numToEn(m);
+}
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// ─── Thai number words ───────────────────────────────────────────────────────
+const TH_BASE = [
+  '', 'หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า',
+  'สิบ','สิบเอ็ด','สิบสอง'
+];
+
+function numToTh(n) {
+  if (n === 0)  return '';
+  if (n <= 12)  return TH_BASE[n];
+  if (n < 20)   return 'สิบ' + TH_BASE[n - 10]; // 13-19
+  const t = Math.floor(n / 10), o = n % 10;
+  const tens = t === 2 ? 'ยี่สิบ' : TH_BASE[t] + 'สิบ';
+  if (o === 0)  return tens;
+  if (o === 1)  return tens + 'เอ็ด'; // tens+1 is always เอ็ด
+  return tens + TH_BASE[o];
+}
+
+function timeToTh(h, m) {
+  const hWord = numToTh(h) + 'โมง';
+  return m === 0 ? hWord : hWord + numToTh(m) + 'นาที';
+}
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let targetMin  = 0;   // 0-719 (12 h × 60)
+let currentMin = 0;
+let isDragging = false;
+let hasMoved   = false;
+const TOLERANCE = 3;  // ±3 minutes accepted
+
+// ─── Clock SVG ───────────────────────────────────────────────────────────────
+const svg  = document.getElementById('clock-svg');
+const NS   = 'http://www.w3.org/2000/svg';
+const CX = 100, CY = 100, R = 92;
+
+function mkEl(tag, attrs) {
+  const el = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function buildClockFace() {
+  svg.innerHTML = '';
+
+  // Outer circle
+  svg.appendChild(mkEl('circle', {
+    cx: CX, cy: CY, r: R,
+    fill: 'white', stroke: '#27a99a', 'stroke-width': '3.5'
+  }));
+
+  // Tick marks
+  for (let i = 0; i < 60; i++) {
+    const ang  = (i * 6 - 90) * Math.PI / 180;
+    const hour = i % 5 === 0;
+    const r1   = hour ? R - 15 : R - 7;
+    svg.appendChild(mkEl('line', {
+      x1: CX + r1 * Math.cos(ang),
+      y1: CY + r1 * Math.sin(ang),
+      x2: CX + (R - 3) * Math.cos(ang),
+      y2: CY + (R - 3) * Math.sin(ang),
+      stroke: hour ? '#27706b' : '#b2ddd8',
+      'stroke-width': hour ? '2.5' : '1',
+      'stroke-linecap': 'round'
+    }));
+  }
+
+  // Hour numbers: 12, 3, 6, 9
+  [12, 3, 6, 9].forEach(n => {
+    const ang = ((n * 30) - 90) * Math.PI / 180;
+    const nr  = R - 28;
+    const t   = mkEl('text', {
+      x: CX + nr * Math.cos(ang),
+      y: CY + nr * Math.sin(ang),
+      'text-anchor': 'middle',
+      'dominant-baseline': 'central',
+      'font-size': '15',
+      'font-weight': '700',
+      fill: '#1a3f3f'
+    });
+    t.textContent = n;
+    svg.appendChild(t);
+  });
+
+  // Hour hand (will be updated)
+  svg.appendChild(mkEl('line', {
+    id: 'hhand',
+    x1: CX, y1: CY, x2: CX, y2: CY - 50,
+    stroke: '#1a3f3f', 'stroke-width': '5',
+    'stroke-linecap': 'round'
+  }));
+
+  // Minute hand
+  svg.appendChild(mkEl('line', {
+    id: 'mhand',
+    x1: CX, y1: CY, x2: CX, y2: CY - 72,
+    stroke: '#1a3f3f', 'stroke-width': '3',
+    'stroke-linecap': 'round'
+  }));
+
+  // Center dot
+  svg.appendChild(mkEl('circle', {
+    cx: CX, cy: CY, r: '6',
+    fill: '#27a99a'
+  }));
+}
+
+function updateClock(total) {
+  // total = 0-719 minutes on a 12-hour face
+  const hAngle = (total / 720) * 360 - 90;
+  const mAngle = ((total % 60) / 60) * 360 - 90;
+  const hr = hAngle * Math.PI / 180;
+  const mr = mAngle * Math.PI / 180;
+
+  const hh = document.getElementById('hhand');
+  const mh = document.getElementById('mhand');
+  if (hh) {
+    hh.setAttribute('x2', CX + 50 * Math.cos(hr));
+    hh.setAttribute('y2', CY + 50 * Math.sin(hr));
+  }
+  if (mh) {
+    mh.setAttribute('x2', CX + 72 * Math.cos(mr));
+    mh.setAttribute('y2', CY + 72 * Math.sin(mr));
+  }
+}
+
+function updateDigital(total) {
+  const h = Math.floor(total / 60) % 12 || 12;
+  const m = total % 60;
+  document.getElementById('digital').textContent =
+    `${h}:${String(m).padStart(2, '0')}`;
+}
+
+// ─── Challenge generation ────────────────────────────────────────────────────
+function generateChallenge() {
+  targetMin = Math.floor(Math.random() * 720);
+  const dH = Math.floor(targetMin / 60) % 12 || 12;
+  const dM = targetMin % 60;
+  document.getElementById('hint-en').textContent = timeToEn(dH, dM);
+  document.getElementById('hint-th').textContent = timeToTh(dH, dM);
+
+  currentMin = 0;
+  hasMoved   = false;
+  applySlider(0);
+  updateStatus('Drag the slider to set the time', false);
+}
+
+// ─── Slider ──────────────────────────────────────────────────────────────────
+const track  = document.getElementById('slider-track');
+const fill   = document.getElementById('slider-fill');
+const btn    = document.getElementById('slider-btn');
+
+function trackUsable() {
+  return track.offsetWidth - btn.offsetWidth;
+}
+
+function applySlider(pct) {
+  pct = Math.max(0, Math.min(1, pct));
+  currentMin = Math.round(pct * 719);
+  const px = pct * trackUsable();
+  btn.style.left  = px + 'px';
+  fill.style.width = (px + btn.offsetWidth / 2) + 'px';
+  updateClock(currentMin);
+  updateDigital(currentMin);
+}
+
+function pctFromX(clientX) {
+  const rect = track.getBoundingClientRect();
+  const half = btn.offsetWidth / 2;
+  return (clientX - rect.left - half) / trackUsable();
+}
+
+function onMove(clientX) {
+  applySlider(pctFromX(clientX));
+  if (!hasMoved) hasMoved = true;
+  updateStatus('Time set - Click "Verify" to continue', true);
+}
+
+// Mouse
+btn.addEventListener('mousedown', e => { isDragging = true; e.preventDefault(); });
+document.addEventListener('mousemove', e => { if (isDragging) onMove(e.clientX); });
+document.addEventListener('mouseup',   () => { isDragging = false; });
+
+// Touch
+btn.addEventListener('touchstart', e => { isDragging = true; e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', e => {
+  if (!isDragging) return;
+  e.preventDefault();
+  onMove(e.touches[0].clientX);
+}, { passive: false });
+document.addEventListener('touchend', () => { isDragging = false; });
+
+// Click anywhere on track
+track.addEventListener('click', e => {
+  if (e.target === btn) return;
+  onMove(e.clientX);
+});
+
+// ─── Keyboard (← → = ±1 minute) ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+  e.preventDefault();
+  currentMin = Math.max(0, Math.min(719,
+    currentMin + (e.key === 'ArrowRight' ? 1 : -1)
+  ));
+  applySlider(currentMin / 719);
+  if (!hasMoved) hasMoved = true;
+  updateStatus('Time set - Click "Verify" to continue', true);
+});
+
+// ─── Status text ─────────────────────────────────────────────────────────────
+function updateStatus(msg, teal) {
+  const el = document.getElementById('slider-status');
+  el.textContent = msg;
+  el.style.color = teal ? '#27a99a' : '#999';
+}
+
+// ─── Verify ──────────────────────────────────────────────────────────────────
+document.getElementById('verify-btn').addEventListener('click', () => {
+  if (!hasMoved) {
+    updateStatus('Please drag the slider to set the time first!', false);
+    return;
+  }
+
+  const diff    = Math.abs(currentMin - targetMin);
+  const minDiff = Math.min(diff, 720 - diff); // handle 12:00 wrap
+
+  const overlay = document.getElementById('result-overlay');
+  const icon    = document.getElementById('result-icon');
+  const title   = document.getElementById('result-title');
+  const msg     = document.getElementById('result-msg');
+
+  if (minDiff <= TOLERANCE) {
+    icon.textContent  = '✅';
+    title.textContent = 'Verified!';
+    title.style.color = '#1a5252';
+    msg.textContent   = 'Human verification passed successfully.';
+  } else {
+    const tH = Math.floor(targetMin / 60) % 12 || 12;
+    const tM = targetMin % 60;
+    icon.textContent  = '❌';
+    title.textContent = 'Incorrect';
+    title.style.color = '#c0392b';
+    msg.textContent   =
+      `The correct time was ${tH}:${String(tM).padStart(2,'0')}.\n` +
+      `You set ${Math.floor(currentMin/60)%12||12}:${String(currentMin%60).padStart(2,'0')}. Try again!`;
+  }
+  overlay.classList.add('show');
+});
+
+document.getElementById('result-ok').addEventListener('click', () => {
+  document.getElementById('result-overlay').classList.remove('show');
+  generateChallenge();
+});
+
+document.getElementById('refresh-btn').addEventListener('click', generateChallenge);
+
+document.getElementById('info-btn').addEventListener('click', () => {
+  alert(
+    'Clock CAPTCHA\n\n' +
+    '• Drag the slider (or use ← → keys) to rotate the clock hands.\n' +
+    '• Match the time shown in the hint box.\n' +
+    '• Accuracy within ±3 minutes is accepted.\n' +
+    '• Click Verify when ready.'
+  );
+});
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+buildClockFace();
+generateChallenge();
+</script>
+</body>
+</html>
