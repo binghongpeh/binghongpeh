@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receipt</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: #2c2c2c;
+      background-image:
+        radial-gradient(ellipse at 30% 20%, #3a3a3a 0%, transparent 60%),
+        radial-gradient(ellipse at 70% 80%, #1e1e1e 0%, transparent 60%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.3);
+      font-size: 13px;
+      letter-spacing: 0.05em;
+      pointer-events: none;
+      transition: opacity 0.6s;
+    }
+
+    /* ── Receipt wrapper (shadow lives here) ── */
+    .receipt-wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      filter: drop-shadow(0px 18px 28px rgba(0,0,0,0.55))
+              drop-shadow(0px 6px 10px rgba(0,0,0,0.35));
+      will-change: filter, transform;
+      transition: filter 0.15s ease-out;
+    }
+
+    .receipt-wrapper:active { cursor: grabbing; }
+
+    /* ── Receipt paper ── */
+    .receipt {
+      width: 300px;
+      background: #faf8f3;
+      position: relative;
+      padding: 0;
+    }
+
+    /* Torn/perforated top edge */
+    .receipt::before {
+      content: '';
+      display: block;
+      width: 100%;
+      height: 14px;
+      background:
+        radial-gradient(circle at 7px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 21px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 35px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 49px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 63px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 77px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 91px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 105px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 119px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 133px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 147px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 161px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 175px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 189px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 203px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 217px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 231px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 245px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 259px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 273px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 287px 0, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 300px 0, #2c2c2c 6px, transparent 7px);
+      background-size: 300px 14px;
+      background-color: #faf8f3;
+    }
+
+    /* Torn/perforated bottom edge */
+    .receipt::after {
+      content: '';
+      display: block;
+      width: 100%;
+      height: 14px;
+      background:
+        radial-gradient(circle at 7px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 21px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 35px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 49px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 63px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 77px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 91px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 105px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 119px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 133px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 147px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 161px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 175px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 189px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 203px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 217px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 231px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 245px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 259px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 273px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 287px 14px, #2c2c2c 6px, transparent 7px),
+        radial-gradient(circle at 300px 14px, #2c2c2c 6px, transparent 7px);
+      background-size: 300px 14px;
+      background-color: #faf8f3;
+    }
+
+    .receipt-body {
+      padding: 4px 22px 16px;
+      background: #faf8f3;
+      /* Subtle paper texture */
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    }
+
+    /* ── Typography ── */
+    .store-name {
+      text-align: center;
+      font-size: 17px;
+      font-weight: bold;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #1a1a1a;
+      margin-bottom: 2px;
+    }
+
+    .store-sub {
+      text-align: center;
+      font-size: 10px;
+      color: #666;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px dashed #bbb;
+      margin: 8px 0;
+    }
+
+    .divider-solid {
+      border: none;
+      border-top: 1px solid #ccc;
+      margin: 8px 0;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #555;
+      margin-bottom: 2px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 0.1em;
+      color: #333;
+      text-transform: uppercase;
+      margin: 6px 0 4px;
+    }
+
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #222;
+      margin-bottom: 3px;
+      line-height: 1.35;
+    }
+
+    .item-name { flex: 1; }
+    .item-qty  { width: 28px; text-align: center; color: #666; }
+    .item-price { text-align: right; min-width: 52px; }
+
+    .subtotal-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #444;
+      margin-bottom: 2px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 15px;
+      font-weight: bold;
+      color: #111;
+      margin: 4px 0 2px;
+    }
+
+    .payment-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #444;
+      margin-bottom: 2px;
+    }
+
+    .barcode {
+      margin: 12px auto 4px;
+      width: 180px;
+      height: 42px;
+      display: flex;
+      align-items: stretch;
+      gap: 1px;
+    }
+
+    .barcode-bar {
+      flex: 1;
+      background: #1a1a1a;
+      border-radius: 1px;
+    }
+
+    .barcode-bar.thin  { flex: 0.5; }
+    .barcode-bar.space { background: transparent; }
+
+    .barcode-num {
+      text-align: center;
+      font-size: 8px;
+      color: #555;
+      letter-spacing: 0.15em;
+      margin-bottom: 2px;
+    }
+
+    .thank-you {
+      text-align: center;
+      font-size: 11px;
+      color: #555;
+      letter-spacing: 0.05em;
+      margin-top: 6px;
+    }
+
+    .asterisk-row {
+      text-align: center;
+      font-size: 10px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="receipt-wrapper" id="receiptWrapper">
+    <div class="receipt" id="receipt">
+
+      <!-- Perforated top (::before) -->
+      <div class="receipt-body">
+
+        <div class="store-name">The Daily Brew</div>
+        <div class="store-sub">123 Maple Ave &bull; Springfield &bull; (555) 019-2847</div>
+
+        <hr class="divider">
+
+        <div class="info-row"><span>Date</span><span>28 Mar 2026</span></div>
+        <div class="info-row"><span>Time</span><span>10:42 AM</span></div>
+        <div class="info-row"><span>Order #</span><span>4471</span></div>
+        <div class="info-row"><span>Cashier</span><span>Maya</span></div>
+
+        <hr class="divider">
+
+        <div class="section-label">Items</div>
+
+        <div class="item-row">
+          <span class="item-name">Flat White</span>
+          <span class="item-qty">x1</span>
+          <span class="item-price">$4.80</span>
+        </div>
+        <div class="item-row">
+          <span class="item-name">Croissant</span>
+          <span class="item-qty">x2</span>
+          <span class="item-price">$7.00</span>
+        </div>
+        <div class="item-row">
+          <span class="item-name">Blueberry Muffin</span>
+          <span class="item-qty">x1</span>
+          <span class="item-price">$3.50</span>
+        </div>
+        <div class="item-row">
+          <span class="item-name">Iced Matcha Latte</span>
+          <span class="item-qty">x1</span>
+          <span class="item-price">$5.20</span>
+        </div>
+        <div class="item-row">
+          <span class="item-name">Sparkling Water</span>
+          <span class="item-qty">x2</span>
+          <span class="item-price">$4.00</span>
+        </div>
+
+        <hr class="divider">
+
+        <div class="subtotal-row"><span>Subtotal</span><span>$24.50</span></div>
+        <div class="subtotal-row"><span>Tax (8%)</span><span>$1.96</span></div>
+        <div class="subtotal-row"><span>Service charge</span><span>$1.23</span></div>
+
+        <hr class="divider-solid">
+
+        <div class="total-row"><span>TOTAL</span><span>$27.69</span></div>
+
+        <hr class="divider">
+
+        <div class="payment-row"><span>Card (Visa ****4821)</span><span>$27.69</span></div>
+        <div class="payment-row"><span>Change</span><span>$0.00</span></div>
+
+        <hr class="divider">
+
+        <!-- Barcode -->
+        <div class="barcode" id="barcode"></div>
+        <div class="barcode-num">4471 0328 2026 0001</div>
+
+        <div class="thank-you">Thank you for visiting!</div>
+        <div class="asterisk-row">* * * * * * * * * * * * * *</div>
+
+      </div>
+      <!-- Perforated bottom (::after) -->
+
+    </div>
+  </div>
+
+  <div class="hint" id="hint">Drag the receipt</div>
+
+  <script>
+    // ── Generate barcode bars ──
+    const barcodeEl = document.getElementById('barcode');
+    const pattern = [1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,0,1,0,1,1,0,1,1,0,1,0,1,1,0,1,0,1,0,1,1,0,1,0,1,1,0,1,1,0,1,0,1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1];
+    const thins   = new Set([2,5,9,14,18,22,30,35,40,45,52,57]);
+    pattern.forEach((v, i) => {
+      const bar = document.createElement('div');
+      if (v === 0) { bar.className = 'barcode-bar space'; }
+      else { bar.className = 'barcode-bar' + (thins.has(i) ? ' thin' : ''); }
+      barcodeEl.appendChild(bar);
+    });
+
+    // ── Drag logic ──
+    const wrapper = document.getElementById('receiptWrapper');
+    const hint    = document.getElementById('hint');
+
+    let posX = 0, posY = 0;
+    let velX = 0, velY = 0;
+    let dragging = false;
+    let dragOffX = 0, dragOffY = 0;
+    let lastMouseX = 0, lastMouseY = 0;
+    let lastTime = 0;
+
+    // Shadow state (spring physics)
+    let shadowX = 0, shadowY = 18;
+    let shadowBlur = 28;
+    let shadowSpread = 0;
+    let shadowOpacity = 0.55;
+    let elevation = 0; // 0 = on table, 1 = lifted high
+
+    function getClientPos(e) {
+      if (e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      return { x: e.clientX, y: e.clientY };
+    }
+
+    function onDragStart(e) {
+      e.preventDefault();
+      const { x, y } = getClientPos(e);
+      dragging = true;
+      dragOffX  = x - posX;
+      dragOffY  = y - posY;
+      lastMouseX = x;
+      lastMouseY = y;
+      lastTime   = performance.now();
+      velX = velY = 0;
+      hint.style.opacity = '0';
+    }
+
+    function onDragMove(e) {
+      if (!dragging) return;
+      const { x, y } = getClientPos(e);
+      const now = performance.now();
+      const dt  = Math.max(now - lastTime, 1);
+
+      velX = (x - lastMouseX) / dt * 16; // px per frame (~60fps)
+      velY = (y - lastMouseY) / dt * 16;
+
+      lastMouseX = x;
+      lastMouseY = y;
+      lastTime   = now;
+
+      posX = x - dragOffX;
+      posY = y - dragOffY;
+
+      applyTransform();
+    }
+
+    function onDragEnd() {
+      dragging = false;
+    }
+
+    // ── Animation loop ──
+    const LIGHT_X = window.innerWidth  * 0.3;
+    const LIGHT_Y = window.innerHeight * 0.1;
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    let raf;
+    function animate() {
+      raf = requestAnimationFrame(animate);
+
+      if (!dragging) {
+        // Decay velocity
+        velX *= 0.88;
+        velY *= 0.88;
+      }
+
+      // Speed determines how "lifted" the paper feels
+      const speed = Math.sqrt(velX * velX + velY * velY);
+      const targetElevation = dragging ? clamp(speed / 18, 0.15, 1) : 0;
+      elevation = lerp(elevation, targetElevation, 0.12);
+
+      // Shadow offset: opposite to velocity (paper lifts away from direction of motion)
+      // + offset based on paper position relative to the virtual light source
+      const lightOffX = (posX - LIGHT_X) / window.innerWidth  * 20;
+      const lightOffY = (posY - LIGHT_Y) / window.innerHeight * 20;
+
+      const velShadowX = -velX * 0.5;
+      const velShadowY = -velY * 0.5 + 8; // gravity bias: shadow always slightly below
+
+      const targetShadowX = lerp(lightOffX, velShadowX, elevation);
+      const targetShadowY = lerp(8 + lightOffY, velShadowY, elevation);
+      const targetBlur    = lerp(18, 55, elevation);
+      const targetOpacity = lerp(0.45, 0.65, elevation);
+
+      shadowX       = lerp(shadowX,       targetShadowX, 0.18);
+      shadowY       = lerp(shadowY,       targetShadowY, 0.18);
+      shadowBlur    = lerp(shadowBlur,    targetBlur,    0.18);
+      shadowOpacity = lerp(shadowOpacity, targetOpacity, 0.18);
+
+      applyTransform();
+    }
+
+    function applyTransform() {
+      const scale = 1 + elevation * 0.04; // slight scale-up when lifted
+
+      // Tilt: slight 3-D tilt based on velocity
+      const tiltX = clamp(-velY * 0.6, -12, 12);
+      const tiltY = clamp( velX * 0.6, -12, 12);
+
+      wrapper.style.left = `calc(50% + ${posX}px)`;
+      wrapper.style.top  = `calc(50% + ${posY}px)`;
+
+      wrapper.style.transform =
+        `translate(-50%, -50%) ` +
+        `scale(${scale}) ` +
+        `perspective(600px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+
+      wrapper.style.filter =
+        `drop-shadow(${shadowX.toFixed(1)}px ${shadowY.toFixed(1)}px ${shadowBlur.toFixed(1)}px rgba(0,0,0,${shadowOpacity.toFixed(3)})) ` +
+        `drop-shadow(0px 3px 6px rgba(0,0,0,0.25))`;
+    }
+
+    // ── Event listeners ──
+    wrapper.addEventListener('mousedown',  onDragStart);
+    wrapper.addEventListener('touchstart', onDragStart, { passive: false });
+
+    window.addEventListener('mousemove', onDragMove);
+    window.addEventListener('touchmove', (e) => { e.preventDefault(); onDragMove(e); }, { passive: false });
+
+    window.addEventListener('mouseup',   onDragEnd);
+    window.addEventListener('touchend',  onDragEnd);
+
+    animate();
+  </script>
+</body>
+</html>
