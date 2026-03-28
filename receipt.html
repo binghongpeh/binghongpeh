@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPU Mart — Physics Receipt</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #e8e8e8;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  cursor: default;
+}
+#hint {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #555;
+  background: rgba(255,255,255,0.75);
+  padding: 6px 18px;
+  border-radius: 20px;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+canvas { display: block; cursor: grab; }
+canvas.grabbing { cursor: grabbing; }
+</style>
+</head>
+<body>
+<div id="hint">左键拖拽小票 · 松开弹回 · 感受真实热敏纸物理</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────────────────────
+// SCENE SETUP
+// ─────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xebebeb);
+scene.fog = new THREE.Fog(0xebebeb, 18, 28);
+
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 0.5, 8.5);
+camera.lookAt(0, 0, 0);
+
+// Lighting
+const ambLight = new THREE.AmbientLight(0xfff5e0, 0.55);
+scene.add(ambLight);
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.9);
+sunLight.position.set(3, 6, 6);
+sunLight.castShadow = true;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 25;
+sunLight.shadow.camera.left = -5;
+sunLight.shadow.camera.right = 5;
+sunLight.shadow.camera.top = 8;
+sunLight.shadow.camera.bottom = -8;
+sunLight.shadow.mapSize.set(1024, 1024);
+sunLight.shadow.bias = -0.001;
+scene.add(sunLight);
+
+const fillLight = new THREE.PointLight(0xffe8c0, 0.35, 20);
+fillLight.position.set(-3.5, 1, 5);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xccddff, 0.2);
+rimLight.position.set(-2, -2, -3);
+scene.add(rimLight);
+
+// Shadow receiver plane
+const shadowMat = new THREE.ShadowMaterial({ opacity: 0.18 });
+const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), shadowMat);
+shadowPlane.rotation.x = -Math.PI / 2;
+shadowPlane.position.y = -4.5;
+shadowPlane.receiveShadow = true;
+scene.add(shadowPlane);
+
+// ─────────────────────────────────────────────────────────────
+// RECEIPT TEXTURE — Canvas 2D
+// ─────────────────────────────────────────────────────────────
+function buildReceiptTexture() {
+  const W = 512, H = 2048;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  // Paper background — thermal paper warmth
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#fefef6');
+  bg.addColorStop(0.5, '#fdfdf0');
+  bg.addColorStop(1, '#fefef6');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle paper grain noise
+  for (let i = 0; i < 3500; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.04})`;
+    ctx.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random(), 1 + Math.random());
+  }
+  // Horizontal micro-lines (thermal paper)
+  for (let y = 0; y < H; y += 3) {
+    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.015})`;
+    ctx.fillRect(0, y, W, 1);
+  }
+
+  // ── helpers ──
+  const c = (text, y, fs, bold) => {
+    ctx.font = `${bold ? 'bold ' : ''}${fs}px "Courier New",monospace`;
+    ctx.textAlign = 'center'; ctx.fillStyle = '#111';
+    ctx.fillText(text, W / 2, y);
+  };
+  const l = (text, y, fs, color) => {
+    ctx.font = `${fs}px "Courier New",monospace`;
+    ctx.textAlign = 'left'; ctx.fillStyle = color || '#222';
+    ctx.fillText(text, 32, y);
+  };
+  const r = (text, y, fs, color) => {
+    ctx.font = `${fs}px "Courier New",monospace`;
+    ctx.textAlign = 'right'; ctx.fillStyle = color || '#222';
+    ctx.fillText(text, W - 32, y);
+  };
+  const div = (y, thick) => {
+    ctx.strokeStyle = '#444'; ctx.lineWidth = thick ? 2.5 : 1;
+    ctx.setLineDash(thick ? [] : [7, 5]);
+    ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(W - 30, y); ctx.stroke();
+    ctx.setLineDash([]);
+  };
+  const row = (name, price, subtext, y) => {
+    l(name, y, 19); if (price) r(price, y, 19);
+    if (subtext) { ctx.font = '16px "Courier New",monospace'; ctx.textAlign = 'left'; ctx.fillStyle = '#888'; ctx.fillText(subtext, 42, y + 20); return y + 46; }
+    return y + 28;
+  };
+
+  let y = 62;
+
+  // ── Store header ──
+  ctx.font = 'bold 52px "Courier New",monospace';
+  ctx.textAlign = 'center'; ctx.fillStyle = '#000';
+  ctx.fillText('GPU MART', W / 2, y); y += 44;
+  c('专业图形算法超市', y, 21); y += 30;
+  c('顶点着色器大道 No.666', y, 19); y += 28;
+  c('光栅化市 · 裁剪空间区 · NDC 邮编：00001', y, 17); y += 26;
+  c('客服热线: 1-800-GLSL-ERR', y, 19); y += 32;
+
+  div(y, true); y += 28;
+  c('发票编号: 0x00DEAD00', y, 20, true); y += 28;
+  c('时间: 2026-03-28  16:00:00', y, 19); y += 26;
+  c('收银员: VertexShader_v4.2.glsl', y, 19); y += 30;
+  div(y); y += 26;
+
+  ctx.font = 'bold 21px "Courier New",monospace';
+  ctx.textAlign = 'left'; ctx.fillStyle = '#000';
+  ctx.fillText('商品描述', 32, y);
+  ctx.textAlign = 'right'; ctx.fillText('价格', W - 32, y);
+  y += 8; div(y); y += 22;
+
+  // ── Shopping items ──
+  const items = [
+    ['顶点缓冲对象 VBO  x500',    '$12.99', '买一送一段错误'],
+    ['着色器编译失败  x1',         'FREE',   '时间限免，出错免单，错误必现'],
+    ['GPU 过度绘制套餐',           '$24.99', '层层透明 · 渲染无止境'],
+    ['法线贴图抛光服务',           '$8.50',  '确保您的凸起指向正确的天空'],
+    ['Z-Fighting 心理咨询',       '$15.00', '两个面谁都不让，专业调解'],
+    ['纹理图集 1024×1024',        '$6.99',  '小图塞满大图，DrawCall减半'],
+    ['MSAA 抗锯齿豪华套装',       '$19.99', 'x8 采样，每条边都圆润丝滑'],
+    ['光线追踪尊享体验 ×1h',      '$49.99', '每帧渲染3分钟，慢享光影盛宴'],
+    ['裁剪空间→NDC 全程代办',     '$3.50',  '透视除法已包含，放心使用'],
+    ['延迟渲染 G-Buffer 维修',    '$22.00', '位置法线反射率，你反正看不见'],
+    ['深度测试优先权 ×10',        '$7.00',  '画深层者早画吃亏，慎购'],
+    ['LOD 层级升降服务',           '$11.50', '远小近大，距离自动切换'],
+    ['着色器热重载保险',           '$4.99',  '崩了白崩，出错免责，限次使用'],
+    ['实例化绘制 ×10000',         '$0.01',  '一万棵树，同一颗树，一个DrawCall'],
+    ['法线矩阵转置求逆',           '$2.00',  '没人知道为什么，但必须这样做'],
+    ['Mipmap 自动生成  ×全图',    '$5.50',  '远处像素感谢您的贡献'],
+    ['视锥体剔除  ×全场景',       '$0.00',  '不在屏幕里的统统不画，免费'],
+    ['Gamma 矫正手工调整',        '$1.99',  '颜色不对全怪它，99%正确率'],
+    ['阴影贴图分辨率升级',         '$13.00', '256→4096，锯齿阴影消失不见'],
+    ['帧率稳定器  60fps 保障',    '$8.00',  'requestAnimationFrame 已绑定'],
+  ];
+
+  for (const [name, price, sub] of items) {
+    y = row(name, price, sub, y);
+  }
+
+  y += 10; div(y); y += 28;
+
+  // ── Totals ──
+  const total = (name, val, bold) => {
+    const fs = bold ? 23 : 20;
+    ctx.font = `${bold ? 'bold ' : ''}${fs}px "Courier New",monospace`;
+    ctx.textAlign = 'left'; ctx.fillStyle = bold ? '#000' : '#222';
+    ctx.fillText(name, 32, y);
+    ctx.textAlign = 'right'; ctx.fillText(val, W - 32, y);
+    y += bold ? 34 : 28;
+  };
+  total('小计', '$194.45');
+  total('着色器销售税 (13%)', '$25.28');
+  total('GPU 显存溢出附加费', '$9.99');
+  total('像素对齐折扣', '-$0.01');
+  y += 4; div(y, true); y += 14;
+  total('合计', '$229.71', true);
+  y += 4; div(y); y += 26;
+  total('支付: Nvidia RTX 9090 Ti 刷卡', '$229.71');
+  total('找零 (NDC 坐标单位)', '$0.00');
+
+  y += 16; div(y); y += 30;
+
+  // ── Barcode ──
+  const bars = [3,1,2,1,2,3,1,2,1,3,2,1,2,1,3,1,2,2,1,3,2,1,2,1,2,3,1,1,2,3,1,2,1,2,2,1,3,1,2,1];
+  let bx = 40; let toggle = true;
+  for (const w of bars) {
+    if (toggle) { ctx.fillStyle = '#000'; ctx.fillRect(bx, y, w * 6, 58); }
+    bx += w * 6; toggle = !toggle;
+  }
+  y += 68;
+  c('4B 56 4F 20 50 52 49 4D 45 21', y, 17); y += 34;
+
+  div(y); y += 30;
+  c('感谢惠顾！显卡保重！', y, 28, true); y += 38;
+  c('下次编译报错欢迎再来', y, 20); y += 28;
+  c('顶点缓冲区清空中，请稍候…', y, 19); y += 28;
+  c('本票据作为驱动崩溃凭证，永久有效', y, 17); y += 28;
+  c('www.gpu-mart.glsl  ·  © 2026', y, 17); y += 40;
+
+  // Torn bottom edge
+  ctx.fillStyle = '#fefef6';
+  ctx.beginPath(); ctx.moveTo(0, y - 10);
+  for (let x = 0; x <= W; x += 8) {
+    ctx.lineTo(x, y - 10 + Math.sin(x * 0.3) * 4 + (Math.random() - 0.5) * 3);
+  }
+  ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+
+  return new THREE.CanvasTexture(cv);
+}
+
+// ─────────────────────────────────────────────────────────────
+// PHYSICS — Verlet Integration + Particle Constraints
+// ─────────────────────────────────────────────────────────────
+const COLS = 14;
+const ROWS = 38;
+const REC_W = 2.2;
+const REC_H = 6.6;
+const REST_X = REC_W / (COLS - 1);
+const REST_Y = REC_H / (ROWS - 1);
+const GRAVITY = new THREE.Vector3(0, -0.18, 0);
+const DAMPING = 0.986;
+const SUBSTEPS = 8;
+const ITERS = 5;
+
+class Particle {
+  constructor(x, y, z, pinned) {
+    this.pos  = new THREE.Vector3(x, y, z);
+    this.prev = new THREE.Vector3(x, y, z);
+    this.acc  = new THREE.Vector3();
+    this.pinned = pinned;
+  }
+  addForce(f) { if (!this.pinned) this.acc.add(f); }
+  step(dt) {
+    if (this.pinned) return;
+    const vel = this.pos.clone().sub(this.prev).multiplyScalar(DAMPING);
+    this.prev.copy(this.pos);
+    this.pos.add(vel).addScaledVector(this.acc, dt * dt);
+    this.acc.set(0, 0, 0);
+  }
+}
+
+class Constraint {
+  constructor(a, b, rest, stiff) {
+    this.a = a; this.b = b;
+    this.rest = rest; this.stiff = stiff;
+  }
+  solve() {
+    const d = this.b.pos.clone().sub(this.a.pos);
+    const len = d.length();
+    if (len < 1e-9) return;
+    const corr = d.multiplyScalar((len - this.rest) / len * this.stiff * 0.5);
+    if (!this.a.pinned) this.a.pos.add(corr);
+    if (!this.b.pinned) this.b.pos.sub(corr);
+  }
+}
+
+// Build particle grid
+const particles = [];
+for (let row = 0; row < ROWS; row++) {
+  for (let col = 0; col < COLS; col++) {
+    const x = -REC_W / 2 + col * REST_X;
+    const y = REC_H / 2 - row * REST_Y;
+    // Small initial z-perturbation on lower rows for natural look
+    const nz = row > 0 ? (Math.random() - 0.5) * 0.012 * (row / ROWS) : 0;
+    // ALL top-row particles are pinned — no exceptions
+    particles.push(new Particle(x, y, nz, row === 0));
+  }
+}
+const P = (r, c) => particles[r * COLS + c];
+
+// Build constraints
+const constraints = [];
+for (let row = 0; row < ROWS; row++) {
+  for (let col = 0; col < COLS; col++) {
+    // Structural horizontal
+    if (col < COLS - 1) {
+      const s = row === 0 ? 1.0 : 0.995;
+      constraints.push(new Constraint(P(row, col), P(row, col + 1), REST_X, s));
+    }
+    // Structural vertical
+    if (row < ROWS - 1) {
+      const s = row < 2 ? 1.0 : 0.985;
+      constraints.push(new Constraint(P(row, col), P(row + 1, col), REST_Y, s));
+    }
+    // Shear diagonals
+    if (col < COLS - 1 && row < ROWS - 1) {
+      const d = Math.hypot(REST_X, REST_Y);
+      const s = 0.82;
+      constraints.push(new Constraint(P(row, col),     P(row + 1, col + 1), d, s));
+      constraints.push(new Constraint(P(row, col + 1), P(row + 1, col),     d, s));
+    }
+    // Bending horizontal (skip 1)
+    if (col < COLS - 2) {
+      constraints.push(new Constraint(P(row, col), P(row, col + 2), REST_X * 2, 0.45));
+    }
+    // Bending vertical (skip 1) — paper stiffness, stronger near top
+    if (row < ROWS - 2) {
+      const s = row < 4 ? 0.72 : (row < 10 ? 0.58 : 0.38);
+      constraints.push(new Constraint(P(row, col), P(row + 2, col), REST_Y * 2, s));
+    }
+  }
+}
+
+// Physics step
+let dragTarget = new THREE.Vector3();
+let dragParticle = null;
+
+function physicsStep(dt) {
+  const subDt = dt / SUBSTEPS;
+  for (let s = 0; s < SUBSTEPS; s++) {
+    // Forces
+    for (const p of particles) {
+      if (!p.pinned) p.addForce(GRAVITY);
+    }
+    // Drag spring
+    if (dragParticle && !dragParticle.pinned) {
+      const spring = dragTarget.clone().sub(dragParticle.pos).multiplyScalar(650);
+      dragParticle.addForce(spring);
+      // Velocity damping on dragged point
+      const vel = dragParticle.pos.clone().sub(dragParticle.prev).multiplyScalar(-8);
+      dragParticle.addForce(vel);
+    }
+    // Integrate
+    for (const p of particles) p.step(subDt);
+    // Solve constraints
+    for (let iter = 0; iter < ITERS; iter++) {
+      for (const c of constraints) c.solve();
+      // Re-enforce pinned top row absolutely
+      for (let col = 0; col < COLS; col++) {
+        const p = P(0, col);
+        p.pos.copy(p.prev); // since prev was set to original pos and it's pinned, this keeps it fixed
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// THREE.JS MESH — Dynamic BufferGeometry
+// ─────────────────────────────────────────────────────────────
+const receiptTex = buildReceiptTexture();
+
+const geo = new THREE.BufferGeometry();
+const N = COLS * ROWS;
+const posArr  = new Float32Array(N * 3);
+const normArr = new Float32Array(N * 3);
+const uvArr   = new Float32Array(N * 2);
+const idxArr  = [];
+
+// UVs (static)
+for (let row = 0; row < ROWS; row++) {
+  for (let col = 0; col < COLS; col++) {
+    const i = row * COLS + col;
+    uvArr[i * 2]     = col / (COLS - 1);
+    uvArr[i * 2 + 1] = 1.0 - row / (ROWS - 1);
+  }
+}
+// Indices (static)
+for (let row = 0; row < ROWS - 1; row++) {
+  for (let col = 0; col < COLS - 1; col++) {
+    const a = row * COLS + col,
+          b = row * COLS + col + 1,
+          c = (row + 1) * COLS + col,
+          d = (row + 1) * COLS + col + 1;
+    idxArr.push(a, b, c, b, d, c);
+  }
+}
+
+geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3).setUsage(THREE.DynamicDrawUsage));
+geo.setAttribute('normal',   new THREE.BufferAttribute(normArr, 3));
+geo.setAttribute('uv',       new THREE.BufferAttribute(uvArr, 2));
+geo.setIndex(idxArr);
+
+// Thermal paper material
+const mat = new THREE.MeshPhysicalMaterial({
+  map: receiptTex,
+  side: THREE.DoubleSide,
+  roughness: 0.88,
+  metalness: 0.0,
+  color: 0xfefef2,
+  envMapIntensity: 0.3,
+});
+
+const mesh = new THREE.Mesh(geo, mat);
+mesh.castShadow = true;
+mesh.receiveShadow = true;
+scene.add(mesh);
+
+// Receipt border/edge highlight (thin dark outline mesh)
+const edgeGeo = new THREE.BufferGeometry();
+edgeGeo.setAttribute('position', geo.attributes.position); // shared reference
+edgeGeo.setIndex(idxArr);
+const edgeMat = new THREE.MeshBasicMaterial({
+  color: 0xbbbbaa,
+  side: THREE.BackSide,
+  transparent: true,
+  opacity: 0.35,
+});
+const edgeMesh = new THREE.Mesh(edgeGeo, edgeMat);
+edgeMesh.scale.setScalar(1.005);
+scene.add(edgeMesh);
+
+// ─────────────────────────────────────────────────────────────
+// GEOMETRY UPDATE
+// ─────────────────────────────────────────────────────────────
+function syncGeometry() {
+  for (let i = 0; i < particles.length; i++) {
+    posArr[i * 3]     = particles[i].pos.x;
+    posArr[i * 3 + 1] = particles[i].pos.y;
+    posArr[i * 3 + 2] = particles[i].pos.z;
+  }
+  geo.attributes.position.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
+// ─────────────────────────────────────────────────────────────
+// MOUSE INTERACTION
+// ─────────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse2D   = new THREE.Vector2();
+const dragPlane = new THREE.Plane();
+const canvas    = renderer.domElement;
+
+function toNDC(e) {
+  const rect = canvas.getBoundingClientRect();
+  mouse2D.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+  mouse2D.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  toNDC(e);
+  raycaster.setFromCamera(mouse2D, camera);
+  const hits = raycaster.intersectObject(mesh);
+  if (!hits.length) return;
+  const pt = hits[0].point;
+  let best = null, bestD = Infinity;
+  for (const p of particles) {
+    if (p.pinned) continue;
+    const d = p.pos.distanceTo(pt);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  if (best) {
+    dragParticle = best;
+    dragTarget.copy(best.pos);
+    dragPlane.setFromNormalAndCoplanarPoint(
+      camera.getWorldDirection(new THREE.Vector3()).negate(), best.pos
+    );
+    canvas.classList.add('grabbing');
+    e.preventDefault();
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!dragParticle) return;
+  toNDC(e);
+  raycaster.setFromCamera(mouse2D, camera);
+  const hit = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(dragPlane, hit)) {
+    dragTarget.copy(hit);
+  }
+});
+
+const release = () => {
+  dragParticle = null;
+  canvas.classList.remove('grabbing');
+};
+canvas.addEventListener('mouseup',    release);
+canvas.addEventListener('mouseleave', release);
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  const fakeEvt = { button: 0, clientX: t.clientX, clientY: t.clientY, preventDefault: () => e.preventDefault() };
+  canvas.dispatchEvent(Object.assign(new MouseEvent('mousedown'), fakeEvt));
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  const fakeEvt = { clientX: t.clientX, clientY: t.clientY };
+  if (dragParticle) {
+    toNDC(fakeEvt);
+    raycaster.setFromCamera(mouse2D, camera);
+    const hit = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(dragPlane, hit)) dragTarget.copy(hit);
+  }
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', release);
+
+// ─────────────────────────────────────────────────────────────
+// ANIMATION LOOP
+// ─────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+// Subtle idle oscillation when not dragging
+let idleTime = 0;
+function applyIdleWind() {
+  idleTime += 0.016;
+  for (let row = 4; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const p = P(row, col);
+      const t = idleTime;
+      const factor = (row / ROWS) * 0.006;
+      const wx = Math.sin(t * 0.7 + col * 0.4) * factor;
+      const wz = Math.cos(t * 0.5 + row * 0.3) * factor;
+      p.addForce(new THREE.Vector3(wx, 0, wz));
+    }
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.034);
+  if (!dragParticle) applyIdleWind();
+  physicsStep(dt);
+  syncGeometry();
+  renderer.render(scene, camera);
+}
+
+// Resize
+window.addEventListener('resize', () => {
+  const W = window.innerWidth, H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+});
+
+animate();
+</script>
+</body>
+</html>
