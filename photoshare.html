@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SnapShare – Cross-Platform Photo Sharing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .drop-zone { transition: all 0.2s; }
+    .drop-zone.dragover { border-color: #6366f1; background: #eef2ff; transform: scale(1.02); }
+    .photo-card img { transition: transform 0.2s; }
+    .photo-card:hover img { transform: scale(1.04); }
+    .progress-bar { transition: width 0.3s ease; }
+    #qr-container canvas, #qr-container img { border-radius: 12px; }
+    .fade-in { animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    .spinner { border: 3px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:999; animation: fadeIn 0.3s ease; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+
+<!-- ===== SETUP SCREEN ===== -->
+<div id="setup-screen" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 fade-in overflow-y-auto max-h-[90vh]">
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">🔧</div>
+      <h2 class="text-2xl font-bold text-gray-800">One-time Setup</h2>
+      <p class="text-gray-500 mt-1 text-sm">Connect your free Firebase project to enable photo storage</p>
+    </div>
+    <div class="bg-indigo-50 rounded-xl p-4 mb-5 text-sm text-indigo-800 space-y-1">
+      <p class="font-semibold mb-2">How to get your Firebase config:</p>
+      <p>1. Go to <a href="https://console.firebase.google.com" target="_blank" class="underline font-medium">console.firebase.google.com</a></p>
+      <p>2. Create a project (free) → click <strong>Web</strong> icon (&lt;/&gt;)</p>
+      <p>3. Register app → copy the <code>firebaseConfig</code> object values below</p>
+      <p>4. In Firebase, enable <strong>Firestore</strong> and <strong>Storage</strong> (test mode)</p>
+      <p class="mt-2 text-xs text-indigo-600">⚡ Free tier: 1GB storage, 10GB/month download – plenty for gatherings!</p>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">API Key</label>
+        <input id="cfg-apiKey" type="text" placeholder="AIzaSy..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Auth Domain</label>
+        <input id="cfg-authDomain" type="text" placeholder="myapp.firebaseapp.com" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Project ID</label>
+        <input id="cfg-projectId" type="text" placeholder="my-project-id" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Storage Bucket</label>
+        <input id="cfg-storageBucket" type="text" placeholder="myapp.appspot.com" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Messaging Sender ID</label>
+        <input id="cfg-messagingSenderId" type="text" placeholder="123456789" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">App ID</label>
+        <input id="cfg-appId" type="text" placeholder="1:123:web:abc123" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+    </div>
+    <div id="setup-error" class="hidden mt-3 text-red-600 text-sm bg-red-50 rounded-lg p-3"></div>
+    <button onclick="saveConfig()" class="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition">
+      Save &amp; Connect →
+    </button>
+    <p class="text-center text-xs text-gray-400 mt-3">Config is saved only in your browser. Never shared.</p>
+  </div>
+</div>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="bg-white/80 backdrop-blur border-b border-gray-100 sticky top-0 z-40">
+  <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+    <a href="?" class="flex items-center gap-2 font-bold text-indigo-700 text-lg">
+      📸 <span>SnapShare</span>
+    </a>
+    <button onclick="showSetup()" class="text-xs text-gray-400 hover:text-indigo-600 transition border border-gray-200 rounded-lg px-3 py-1.5">
+      ⚙️ Firebase Setup
+    </button>
+  </div>
+</nav>
+
+<!-- ===== MAIN WRAPPER ===== -->
+<main class="max-w-3xl mx-auto px-4 py-8">
+
+  <!-- HOME screen -->
+  <div id="home-screen" class="fade-in">
+    <div class="text-center mb-10">
+      <h1 class="text-3xl font-extrabold text-gray-800">Share photos with anyone</h1>
+      <p class="text-gray-500 mt-2">No AirDrop. No contact sharing. Just scan &amp; download.</p>
+      <p class="text-indigo-600 text-sm mt-1 font-medium">Works between iPhone, Android, any device 📱</p>
+    </div>
+
+    <!-- How it works -->
+    <div class="grid grid-cols-3 gap-4 mb-10">
+      <div class="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+        <div class="text-3xl mb-2">📤</div>
+        <p class="text-sm font-semibold text-gray-700">Upload Photos</p>
+        <p class="text-xs text-gray-400 mt-1">Select from your gallery</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+        <div class="text-3xl mb-2">🔲</div>
+        <p class="text-sm font-semibold text-gray-700">Get QR Code</p>
+        <p class="text-xs text-gray-400 mt-1">Shown instantly</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
+        <div class="text-3xl mb-2">⬇️</div>
+        <p class="text-sm font-semibold text-gray-700">Friends Download</p>
+        <p class="text-xs text-gray-400 mt-1">Scan &amp; save to phone</p>
+      </div>
+    </div>
+
+    <!-- Action cards -->
+    <div class="grid sm:grid-cols-2 gap-5">
+      <button onclick="showUpload()"
+        class="group bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl p-7 text-left shadow-lg hover:shadow-xl transition-all">
+        <div class="text-4xl mb-3">📤</div>
+        <h2 class="text-xl font-bold">I'm sharing photos</h2>
+        <p class="text-indigo-200 text-sm mt-1">Upload photos and show a QR code for others to scan</p>
+        <div class="mt-4 text-sm font-semibold group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+          Start sharing →
+        </div>
+      </button>
+      <div class="bg-white rounded-2xl p-7 border-2 border-dashed border-indigo-200 text-left">
+        <div class="text-4xl mb-3">📷</div>
+        <h2 class="text-xl font-bold text-gray-700">I want to view photos</h2>
+        <p class="text-gray-400 text-sm mt-1">Scan the QR code shown by the person sharing photos</p>
+        <p class="text-indigo-500 text-xs mt-4 font-medium">Use your phone's camera to scan the QR code — it'll open this site automatically.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPLOAD screen -->
+  <div id="upload-screen" class="hidden fade-in">
+    <button onclick="goHome()" class="flex items-center gap-1 text-gray-400 hover:text-gray-600 text-sm mb-6 transition">
+      ← Back
+    </button>
+    <h2 class="text-2xl font-bold text-gray-800 mb-1">Upload Photos</h2>
+    <p class="text-gray-400 text-sm mb-6">Select your photos and we'll create a shareable gallery instantly.</p>
+
+    <!-- Drop zone -->
+    <div id="drop-zone"
+      class="drop-zone border-2 border-dashed border-indigo-300 rounded-2xl p-10 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 transition mb-5"
+      onclick="document.getElementById('file-input').click()"
+      ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <div class="text-5xl mb-3">🖼️</div>
+      <p class="text-gray-600 font-semibold">Tap to select photos</p>
+      <p class="text-gray-400 text-sm mt-1">or drag &amp; drop here</p>
+      <p class="text-gray-300 text-xs mt-2">JPG, PNG, GIF, WEBP – up to 20 files</p>
+    </div>
+    <input id="file-input" type="file" multiple accept="image/*" class="hidden" onchange="onFilesSelected(event)" />
+
+    <!-- Selected previews -->
+    <div id="preview-grid" class="hidden grid grid-cols-3 sm:grid-cols-4 gap-3 mb-5"></div>
+
+    <!-- Session name -->
+    <div id="session-name-wrap" class="hidden mb-5">
+      <label class="block text-sm font-semibold text-gray-600 mb-1">Gallery Name (optional)</label>
+      <input id="session-name" type="text" placeholder="e.g. John's Birthday Party 🎉"
+        class="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+    </div>
+
+    <!-- Upload button -->
+    <button id="upload-btn" onclick="startUpload()"
+      class="hidden w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition shadow-md">
+      🚀 Upload &amp; Generate QR Code
+    </button>
+
+    <!-- Progress -->
+    <div id="progress-wrap" class="hidden mt-5">
+      <div class="flex justify-between text-sm text-gray-500 mb-1.5">
+        <span id="progress-label">Uploading...</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="bg-gray-200 rounded-full h-2.5">
+        <div id="progress-bar" class="progress-bar bg-indigo-500 h-2.5 rounded-full" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR SHARE screen -->
+  <div id="qr-screen" class="hidden fade-in">
+    <div class="text-center mb-6">
+      <div class="text-5xl mb-3">🎉</div>
+      <h2 class="text-2xl font-bold text-gray-800">Gallery Ready!</h2>
+      <p class="text-gray-400 text-sm mt-1">Show this QR code to anyone to download the photos</p>
+    </div>
+
+    <div class="bg-white rounded-3xl shadow-xl p-8 text-center border border-gray-100 mb-6">
+      <div id="session-title" class="text-lg font-bold text-gray-700 mb-5"></div>
+      <div class="flex justify-center mb-5">
+        <div id="qr-container" class="p-3 bg-white rounded-2xl shadow-inner border border-gray-100"></div>
+      </div>
+      <p class="text-xs text-gray-400 mb-4">Or share this link directly:</p>
+      <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-200">
+        <p id="share-url" class="text-xs text-indigo-600 truncate flex-1 text-left font-mono"></p>
+        <button onclick="copyUrl()" class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg transition font-medium shrink-0">Copy</button>
+      </div>
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800 mb-6">
+      <p class="font-semibold mb-1">💡 Tips</p>
+      <ul class="space-y-1 text-xs">
+        <li>• Keep this page open while others are scanning</li>
+        <li>• Works on iPhone, Android, any device with a camera</li>
+        <li>• Gallery photos available for 7 days</li>
+      </ul>
+    </div>
+
+    <div class="flex gap-3">
+      <button onclick="showUpload()"
+        class="flex-1 border-2 border-indigo-200 text-indigo-600 font-semibold py-3 rounded-xl hover:bg-indigo-50 transition">
+        + Upload More
+      </button>
+      <button onclick="goHome()"
+        class="flex-1 bg-indigo-600 text-white font-semibold py-3 rounded-xl hover:bg-indigo-700 transition">
+        Home
+      </button>
+    </div>
+  </div>
+
+  <!-- GALLERY VIEW screen -->
+  <div id="gallery-screen" class="hidden fade-in">
+    <div class="flex items-center gap-3 mb-2">
+      <button onclick="goHome()" class="text-gray-400 hover:text-gray-600 transition text-sm">← Home</button>
+    </div>
+    <div id="gallery-header" class="mb-6">
+      <div class="flex items-center gap-3">
+        <div class="spinner" id="gallery-spinner"></div>
+        <div>
+          <p class="text-sm text-gray-400" id="gallery-status">Loading gallery...</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="gallery-meta" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+      <h2 id="gallery-title" class="text-xl font-bold text-gray-800"></h2>
+      <p id="gallery-info" class="text-gray-400 text-sm mt-1"></p>
+      <button onclick="downloadAll()"
+        class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition">
+        ⬇️ Download All Photos
+      </button>
+    </div>
+
+    <div id="gallery-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+    <div id="gallery-empty" class="hidden text-center py-16 text-gray-400">
+      <div class="text-5xl mb-3">🌧️</div>
+      <p class="font-semibold">No photos found</p>
+      <p class="text-sm mt-1">This gallery may have expired or the link is invalid.</p>
+    </div>
+  </div>
+
+</main>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden bg-gray-800 text-white text-sm px-5 py-3 rounded-full shadow-lg"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let db, storage, currentFiles = [], sessionId = null;
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(location.search);
+  const sid = params.get('s');
+  if (sid) {
+    // Viewer mode
+    sessionId = sid;
+    const cfg = loadConfig();
+    if (!cfg) { showSetup(); return; }
+    initFirebase(cfg);
+    showScreen('gallery-screen');
+    loadGallery(sid);
+  } else {
+    // Host mode
+    const cfg = loadConfig();
+    if (cfg) {
+      initFirebase(cfg);
+      showScreen('home-screen');
+    } else {
+      showScreen('home-screen');
+      showSetup();
+    }
+  }
+});
+
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem('snapshare_cfg');
+    if (!raw) return null;
+    const cfg = JSON.parse(raw);
+    if (!cfg.apiKey || !cfg.projectId) return null;
+    return cfg;
+  } catch { return null; }
+}
+
+function showSetup() {
+  const cfg = loadConfig();
+  if (cfg) {
+    document.getElementById('cfg-apiKey').value = cfg.apiKey || '';
+    document.getElementById('cfg-authDomain').value = cfg.authDomain || '';
+    document.getElementById('cfg-projectId').value = cfg.projectId || '';
+    document.getElementById('cfg-storageBucket').value = cfg.storageBucket || '';
+    document.getElementById('cfg-messagingSenderId').value = cfg.messagingSenderId || '';
+    document.getElementById('cfg-appId').value = cfg.appId || '';
+  }
+  document.getElementById('setup-screen').classList.remove('hidden');
+}
+
+function saveConfig() {
+  const cfg = {
+    apiKey: v('cfg-apiKey'),
+    authDomain: v('cfg-authDomain'),
+    projectId: v('cfg-projectId'),
+    storageBucket: v('cfg-storageBucket'),
+    messagingSenderId: v('cfg-messagingSenderId'),
+    appId: v('cfg-appId'),
+  };
+  const errEl = document.getElementById('setup-error');
+  if (!cfg.apiKey || !cfg.projectId || !cfg.storageBucket) {
+    errEl.textContent = 'Please fill in at least: API Key, Project ID, and Storage Bucket.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  try {
+    initFirebase(cfg);
+    localStorage.setItem('snapshare_cfg', JSON.stringify(cfg));
+    document.getElementById('setup-screen').classList.add('hidden');
+    errEl.classList.add('hidden');
+    showToast('Firebase connected!');
+  } catch (e) {
+    errEl.textContent = 'Error connecting: ' + e.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+function initFirebase(cfg) {
+  if (firebase.apps.length) {
+    db = firebase.firestore();
+    storage = firebase.storage();
+    return;
+  }
+  firebase.initializeApp(cfg);
+  db = firebase.firestore();
+  storage = firebase.storage();
+}
+
+// ─── SCREENS ──────────────────────────────────────────────────────────────────
+const screens = ['home-screen','upload-screen','qr-screen','gallery-screen'];
+function showScreen(id) {
+  screens.forEach(s => {
+    const el = document.getElementById(s);
+    el.classList.toggle('hidden', s !== id);
+    if (s === id) el.classList.add('fade-in');
+  });
+}
+function goHome() { showScreen('home-screen'); currentFiles = []; resetUpload(); }
+function showUpload() {
+  if (!ensureFirebase()) return;
+  resetUpload();
+  showScreen('upload-screen');
+}
+
+function resetUpload() {
+  currentFiles = [];
+  document.getElementById('preview-grid').innerHTML = '';
+  document.getElementById('preview-grid').classList.add('hidden');
+  document.getElementById('session-name-wrap').classList.add('hidden');
+  document.getElementById('upload-btn').classList.add('hidden');
+  document.getElementById('progress-wrap').classList.add('hidden');
+  document.getElementById('file-input').value = '';
+}
+
+// ─── DRAG & DROP ──────────────────────────────────────────────────────────────
+function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('dragover'); }
+function onDragLeave() { document.getElementById('drop-zone').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+  if (files.length) handleFiles(files);
+}
+function onFilesSelected(e) {
+  const files = [...e.target.files];
+  if (files.length) handleFiles(files);
+}
+
+function handleFiles(files) {
+  if (files.length > 20) { showToast('Max 20 photos at a time'); files = files.slice(0, 20); }
+  currentFiles = files;
+  const grid = document.getElementById('preview-grid');
+  grid.innerHTML = '';
+  files.forEach(f => {
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-card relative rounded-xl overflow-hidden bg-gray-100 aspect-square';
+    const img = document.createElement('img');
+    img.className = 'w-full h-full object-cover';
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(f);
+    const badge = document.createElement('div');
+    badge.className = 'absolute bottom-1 right-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md';
+    badge.textContent = (f.size / 1024 / 1024).toFixed(1) + 'MB';
+    wrap.appendChild(img);
+    wrap.appendChild(badge);
+    grid.appendChild(wrap);
+  });
+  grid.classList.remove('hidden');
+  document.getElementById('session-name-wrap').classList.remove('hidden');
+  document.getElementById('upload-btn').classList.remove('hidden');
+}
+
+// ─── UPLOAD ───────────────────────────────────────────────────────────────────
+async function startUpload() {
+  if (!ensureFirebase()) return;
+  if (!currentFiles.length) return;
+
+  const name = document.getElementById('session-name').value.trim() || 'Photo Gallery';
+  sessionId = generateId();
+
+  document.getElementById('upload-btn').classList.add('hidden');
+  document.getElementById('progress-wrap').classList.remove('hidden');
+
+  // Create Firestore session doc
+  const sessionRef = db.collection('sessions').doc(sessionId);
+  await sessionRef.set({
+    name,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    photoCount: currentFiles.length,
+  });
+
+  const urls = [];
+  for (let i = 0; i < currentFiles.length; i++) {
+    const file = currentFiles[i];
+    setProgress((i / currentFiles.length) * 90, `Uploading ${i + 1} of ${currentFiles.length}...`);
+
+    const ref = storage.ref(`sessions/${sessionId}/${Date.now()}_${file.name}`);
+    const snap = await ref.put(file);
+    const url = await snap.ref.getDownloadURL();
+    urls.push({ url, name: file.name, size: file.size });
+  }
+
+  setProgress(95, 'Saving gallery...');
+  // Save photo URLs to Firestore
+  const batch = db.batch();
+  urls.forEach((p, i) => {
+    const ref = db.collection('sessions').doc(sessionId).collection('photos').doc(`photo_${i}`);
+    batch.set(ref, p);
+  });
+  await batch.commit();
+
+  setProgress(100, 'Done!');
+  showQR(sessionId, name);
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+  document.getElementById('progress-pct').textContent = Math.round(pct) + '%';
+}
+
+// ─── QR CODE ──────────────────────────────────────────────────────────────────
+function showQR(sid, name) {
+  document.getElementById('session-title').textContent = name;
+  const url = `${location.origin}${location.pathname}?s=${sid}`;
+  document.getElementById('share-url').textContent = url;
+  document.getElementById('qr-container').innerHTML = '';
+  new QRCode(document.getElementById('qr-container'), {
+    text: url,
+    width: 220,
+    height: 220,
+    colorDark: '#1e1b4b',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+  showScreen('qr-screen');
+}
+
+function copyUrl() {
+  const url = document.getElementById('share-url').textContent;
+  navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Link copied!');
+  });
+}
+
+// ─── GALLERY VIEW ─────────────────────────────────────────────────────────────
+async function loadGallery(sid) {
+  try {
+    const cfg = loadConfig();
+    if (!cfg) { showSetup(); return; }
+
+    const sessionDoc = await db.collection('sessions').doc(sid).get();
+    if (!sessionDoc.exists) {
+      document.getElementById('gallery-spinner').classList.add('hidden');
+      document.getElementById('gallery-status').textContent = 'Gallery not found or expired.';
+      document.getElementById('gallery-empty').classList.remove('hidden');
+      return;
+    }
+
+    const session = sessionDoc.data();
+    const photosSnap = await db.collection('sessions').doc(sid).collection('photos').get();
+    const photos = photosSnap.docs.map(d => d.data());
+
+    document.getElementById('gallery-spinner').classList.add('hidden');
+    document.getElementById('gallery-header').classList.add('hidden');
+    document.getElementById('gallery-meta').classList.remove('hidden');
+    document.getElementById('gallery-title').textContent = session.name || 'Photo Gallery';
+    document.getElementById('gallery-info').textContent =
+      `${photos.length} photo${photos.length !== 1 ? 's' : ''}`;
+
+    window._galleryPhotos = photos;
+
+    const grid = document.getElementById('gallery-grid');
+    if (!photos.length) {
+      document.getElementById('gallery-empty').classList.remove('hidden');
+      return;
+    }
+
+    photos.forEach((p, i) => {
+      const card = document.createElement('div');
+      card.className = 'photo-card relative rounded-2xl overflow-hidden bg-gray-100 aspect-square shadow-sm group cursor-pointer';
+      card.onclick = () => downloadPhoto(p.url, p.name || `photo_${i + 1}.jpg`);
+
+      const img = document.createElement('img');
+      img.src = p.url;
+      img.className = 'w-full h-full object-cover';
+      img.loading = 'lazy';
+
+      const overlay = document.createElement('div');
+      overlay.className = 'absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center';
+      const icon = document.createElement('div');
+      icon.className = 'text-white text-2xl opacity-0 group-hover:opacity-100 transition transform scale-75 group-hover:scale-100';
+      icon.textContent = '⬇️';
+      overlay.appendChild(icon);
+
+      card.appendChild(img);
+      card.appendChild(overlay);
+      grid.appendChild(card);
+    });
+
+    document.getElementById('gallery-status').textContent = '';
+  } catch (e) {
+    document.getElementById('gallery-spinner').classList.add('hidden');
+    document.getElementById('gallery-status').textContent = 'Error loading gallery: ' + e.message;
+    console.error(e);
+  }
+}
+
+async function downloadPhoto(url, filename) {
+  showToast('Downloading...');
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('Saved to downloads!');
+  } catch {
+    // Fallback: open in new tab
+    window.open(url, '_blank');
+    showToast('Photo opened in new tab – long-press to save');
+  }
+}
+
+async function downloadAll() {
+  const photos = window._galleryPhotos || [];
+  if (!photos.length) return;
+  showToast('Downloading all photos...');
+  for (let i = 0; i < photos.length; i++) {
+    await downloadPhoto(photos[i].url, photos[i].name || `photo_${i + 1}.jpg`);
+    await sleep(300);
+  }
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function v(id) { return document.getElementById(id).value.trim(); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function generateId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.add('hidden'), 2500);
+}
+
+function ensureFirebase() {
+  if (!db || !storage) {
+    if (!loadConfig()) {
+      showSetup();
+      return false;
+    }
+    try { initFirebase(loadConfig()); return true; } catch { return false; }
+  }
+  return true;
+}
+</script>
+</body>
+</html>
