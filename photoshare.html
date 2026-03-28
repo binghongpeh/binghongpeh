@@ -184,6 +184,40 @@
         <div id="progress-bar" class="progress-bar bg-indigo-500 h-2.5 rounded-full" style="width:0%"></div>
       </div>
     </div>
+
+    <!-- Upload error -->
+    <div id="upload-error" class="hidden mt-5 bg-red-50 border border-red-200 rounded-2xl p-5 text-sm text-red-800">
+      <p class="font-bold text-base mb-2">❌ Upload failed</p>
+      <p id="upload-error-msg" class="mb-3"></p>
+      <div class="bg-white border border-red-100 rounded-xl p-4 text-xs space-y-1 mb-4">
+        <p class="font-semibold text-red-700 mb-1">Most likely fix — set Firebase Storage rules:</p>
+        <p>1. Open <a href="https://console.firebase.google.com" target="_blank" class="underline">Firebase Console</a> → your project</p>
+        <p>2. Go to <strong>Storage → Rules</strong></p>
+        <p>3. Replace the rules with:</p>
+        <pre class="bg-gray-100 rounded-lg p-2 mt-1 text-xs overflow-x-auto text-gray-700">rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+        <p class="mt-2">4. Also go to <strong>Firestore → Rules</strong> and set:</p>
+        <pre class="bg-gray-100 rounded-lg p-2 mt-1 text-xs overflow-x-auto text-gray-700">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+        <p class="mt-2 text-red-600">⚠️ These are open rules for a temporary sharing session. Do not store sensitive data.</p>
+      </div>
+      <button onclick="retryUpload()"
+        class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition">
+        Try Again
+      </button>
+    </div>
   </div>
 
   <!-- QR SHARE screen -->
@@ -344,10 +378,17 @@ function saveConfig() {
 }
 
 function initFirebase(cfg) {
+  // Delete existing app if config changed, so new config takes effect
   if (firebase.apps.length) {
-    db = firebase.firestore();
-    storage = firebase.storage();
-    return;
+    const app = firebase.apps[0];
+    const existingProjectId = app.options.projectId;
+    if (existingProjectId !== cfg.projectId) {
+      app.delete();
+    } else {
+      db = firebase.firestore();
+      storage = firebase.storage();
+      return;
+    }
   }
   firebase.initializeApp(cfg);
   db = firebase.firestore();
@@ -424,42 +465,65 @@ async function startUpload() {
   if (!ensureFirebase()) return;
   if (!currentFiles.length) return;
 
-  const name = document.getElementById('session-name').value.trim() || 'Photo Gallery';
-  sessionId = generateId();
-
+  document.getElementById('upload-error').classList.add('hidden');
   document.getElementById('upload-btn').classList.add('hidden');
   document.getElementById('progress-wrap').classList.remove('hidden');
 
-  // Create Firestore session doc
-  const sessionRef = db.collection('sessions').doc(sessionId);
-  await sessionRef.set({
-    name,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    photoCount: currentFiles.length,
-  });
+  const name = document.getElementById('session-name').value.trim() || 'Photo Gallery';
+  sessionId = generateId();
 
-  const urls = [];
-  for (let i = 0; i < currentFiles.length; i++) {
-    const file = currentFiles[i];
-    setProgress((i / currentFiles.length) * 90, `Uploading ${i + 1} of ${currentFiles.length}...`);
+  try {
+    // Create Firestore session doc
+    const sessionRef = db.collection('sessions').doc(sessionId);
+    await sessionRef.set({
+      name,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      photoCount: currentFiles.length,
+    });
 
-    const ref = storage.ref(`sessions/${sessionId}/${Date.now()}_${file.name}`);
-    const snap = await ref.put(file);
-    const url = await snap.ref.getDownloadURL();
-    urls.push({ url, name: file.name, size: file.size });
+    const urls = [];
+    for (let i = 0; i < currentFiles.length; i++) {
+      const file = currentFiles[i];
+      setProgress((i / currentFiles.length) * 90, `Uploading ${i + 1} of ${currentFiles.length}...`);
+      const ref = storage.ref(`sessions/${sessionId}/${Date.now()}_${file.name}`);
+      const snap = await ref.put(file);
+      const url = await snap.ref.getDownloadURL();
+      urls.push({ url, name: file.name, size: file.size });
+    }
+
+    setProgress(95, 'Saving gallery...');
+    const batch = db.batch();
+    urls.forEach((p, i) => {
+      const ref = db.collection('sessions').doc(sessionId).collection('photos').doc(`photo_${i}`);
+      batch.set(ref, p);
+    });
+    await batch.commit();
+
+    setProgress(100, 'Done!');
+    showQR(sessionId, name);
+  } catch (e) {
+    document.getElementById('progress-wrap').classList.add('hidden');
+    const errBox = document.getElementById('upload-error');
+    const errMsg = document.getElementById('upload-error-msg');
+    let hint = e.message || String(e);
+    if (hint.includes('storage/unauthorized') || hint.includes('permission') || hint.includes('403')) {
+      hint = 'Permission denied — Firebase Storage rules are blocking uploads. Follow the fix below.';
+    } else if (hint.includes('storage/unknown') || hint.includes('Failed to fetch') || hint.includes('network')) {
+      hint = 'Network error. Check your internet connection and try again.';
+    } else if (hint.includes('storage/invalid-argument') || hint.includes('storageBucket')) {
+      hint = 'Invalid Storage Bucket. Re-check your Firebase config — the storageBucket value looks wrong.';
+    }
+    errMsg.textContent = hint;
+    errBox.classList.remove('hidden');
+    document.getElementById('upload-btn').classList.remove('hidden');
   }
+}
 
-  setProgress(95, 'Saving gallery...');
-  // Save photo URLs to Firestore
-  const batch = db.batch();
-  urls.forEach((p, i) => {
-    const ref = db.collection('sessions').doc(sessionId).collection('photos').doc(`photo_${i}`);
-    batch.set(ref, p);
-  });
-  await batch.commit();
-
-  setProgress(100, 'Done!');
-  showQR(sessionId, name);
+function retryUpload() {
+  document.getElementById('upload-error').classList.add('hidden');
+  document.getElementById('progress-wrap').classList.add('hidden');
+  setProgress(0, 'Uploading...');
+  startUpload();
 }
 
 function setProgress(pct, label) {
