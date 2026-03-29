@@ -3,341 +3,709 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PawFit Dogwear Shop</title>
+  <title>PawFit — Dogwear Shop</title>
   <style>
     :root {
-      --bg: #fff8f2;
+      --bg: #faf7f4;
       --card: #ffffff;
-      --text: #2b2521;
-      --subtle: #6f645d;
-      --brand: #ff7f50;
-      --brand-dark: #e46638;
-      --border: #f2d9ca;
-      --ok: #2f9e44;
+      --text: #1a1614;
+      --subtle: #6b5f57;
+      --brand: #e8622a;
+      --brand-light: #fff0e8;
+      --brand-dark: #c44d1b;
+      --border: #ede0d7;
+      --green: #2d9e44;
+      --yellow: #e8a020;
+      --shadow: 0 4px 20px rgba(100,60,20,0.08);
+      --radius: 16px;
     }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 24px 14px;
     }
 
-    .container {
-      max-width: 1050px;
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #2b1810 0%, #5c2e18 60%, #e8622a 100%);
+      color: #fff;
+      padding: 20px 24px 24px;
+    }
+    .header-inner {
+      max-width: 1100px;
       margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .logo { font-size: 2.6rem; line-height: 1; }
+    .brand-text h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
+    .brand-text p { opacity: 0.8; font-size: 0.95rem; margin-top: 2px; }
+
+    /* ── MAIN CONTAINER ── */
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
       display: grid;
-      gap: 16px;
+      gap: 28px;
     }
 
-    .card {
+    /* ── SECTION CARDS ── */
+    .section {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+      border-radius: var(--radius);
+      padding: 22px 22px;
+      box-shadow: var(--shadow);
+    }
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .step-badge {
+      background: var(--brand);
+      color: #fff;
+      border-radius: 50%;
+      width: 26px; height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      flex-shrink: 0;
     }
 
-    h1 { font-size: 2rem; margin-bottom: 8px; }
-    h2 { margin-bottom: 10px; }
-    .subtitle { color: var(--subtle); margin-bottom: 12px; }
-
-    .search-row {
+    /* ── SEARCH ── */
+    .search-bar {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      align-items: center;
     }
-
-    input, button, select {
-      border-radius: 10px;
-      border: 1px solid #eadbd2;
-      padding: 10px 12px;
-      font-size: 0.95rem;
+    .search-bar input {
+      flex: 1;
+      min-width: 220px;
+      padding: 12px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.98rem;
+      background: var(--bg);
+      outline: none;
+      transition: border-color 0.2s;
     }
-
-    input, select { flex: 1; min-width: 180px; }
-
-    button {
-      background: var(--brand);
-      color: #fff;
-      border: none;
+    .search-bar input:focus { border-color: var(--brand); }
+    .filter-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .pill {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.83rem;
       font-weight: 600;
       cursor: pointer;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      color: var(--subtle);
+      transition: all 0.15s;
+    }
+    .pill.active, .pill:hover {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
     }
 
-    button:hover { background: var(--brand-dark); }
-
-    .grid {
+    /* ── DOG GRID ── */
+    .dog-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 14px;
+      margin-top: 4px;
     }
-
-    .dog-item, .wear-item {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: #fffdfb;
-      padding: 12px;
+    .dog-card {
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+      background: #fff;
     }
-
-    .dog-pic {
+    .dog-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(232,98,42,0.15); }
+    .dog-card.selected { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(232,98,42,0.18); }
+    .dog-photo {
       width: 100%;
-      height: 120px;
-      object-fit: contain;
-      background: #fff3eb;
-      border-radius: 10px;
-      margin-bottom: 8px;
-      padding: 8px;
+      aspect-ratio: 1;
+      object-fit: cover;
+      background: #f5ece4;
+      display: block;
     }
-
-    .wear-pic {
+    .dog-photo-placeholder {
       width: 100%;
-      height: 100px;
-      object-fit: contain;
-      background: #fff3eb;
-      border-radius: 10px;
-      margin-bottom: 8px;
-      padding: 8px;
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, #fff0e8, #fde8d0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
     }
-
-    .name { font-weight: 700; margin-bottom: 4px; }
-    .meta { color: var(--subtle); font-size: 0.9rem; margin-bottom: 8px; }
-    .tag {
+    .dog-info { padding: 10px 12px 12px; }
+    .dog-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 3px; }
+    .dog-meta { font-size: 0.78rem; color: var(--subtle); }
+    .size-chip {
       display: inline-block;
-      background: #ffe5d7;
-      color: #8f4223;
-      border-radius: 20px;
-      font-size: 0.78rem;
-      padding: 4px 8px;
-      margin-right: 6px;
-      margin-top: 6px;
+      background: var(--brand-light);
+      color: var(--brand-dark);
+      border-radius: 6px;
+      padding: 1px 7px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      margin-top: 5px;
     }
 
-    .studio {
+    /* ── WEAR GRID ── */
+    .wear-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
       gap: 14px;
     }
-
-    .dog-stage {
-      border: 1px dashed #f0ccb8;
+    .wear-card {
+      border: 2px solid var(--border);
       border-radius: 14px;
-      background: #fffdfa;
-      min-height: 280px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+      background: #fff;
+    }
+    .wear-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(232,98,42,0.15); }
+    .wear-card.selected { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(232,98,42,0.18); }
+    .wear-thumb {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+    }
+    .wear-info { padding: 10px 12px 12px; }
+    .wear-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 3px; }
+    .wear-desc { font-size: 0.78rem; color: var(--subtle); }
+    .wear-price { font-weight: 700; color: var(--brand); font-size: 0.95rem; margin-top: 6px; }
+
+    /* ── TRY-ON STUDIO ── */
+    .studio-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 680px) { .studio-layout { grid-template-columns: 1fr; } }
+
+    .canvas-wrap {
+      border: 2px dashed #e0cfc6;
+      border-radius: 16px;
+      min-height: 300px;
+      background: linear-gradient(160deg, #fff9f5, #fff3ec);
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
     }
-
-    .dog-base {
-      width: 85%;
-      max-width: 300px;
-      object-fit: contain;
-      opacity: 0.95;
-    }
-
-    .wear-overlay {
-      position: absolute;
-      width: 36%;
-      max-width: 130px;
-      top: 48%;
-      left: 52%;
-      transform: translate(-50%, -50%);
-      object-fit: contain;
-      pointer-events: none;
-      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.12));
-    }
-
-    .result {
-      margin-top: 10px;
-      border-radius: 12px;
-      border: 1px dashed #f0ccb8;
-      padding: 12px;
+    .canvas-empty {
+      text-align: center;
       color: var(--subtle);
-      background: #fffdf9;
+      font-size: 0.92rem;
+      padding: 40px 20px;
+    }
+    .canvas-empty .big-icon { font-size: 4rem; margin-bottom: 12px; }
+
+    .canvas-dog {
+      width: 78%;
+      max-width: 260px;
+      border-radius: 12px;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+    }
+    .canvas-wear-badge {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(255,255,255,0.92);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 2rem;
+      line-height: 1;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 2;
     }
 
-    .result strong { color: var(--ok); }
+    .studio-controls { display: flex; flex-direction: column; gap: 14px; }
 
-    .muted { color: var(--subtle); font-size: 0.86rem; }
-
-    @media (max-width: 760px) {
-      .studio { grid-template-columns: 1fr; }
+    .selection-summary {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
     }
+    .sel-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+    }
+    .sel-row + .sel-row { border-top: 1px solid var(--border); }
+    .sel-icon { font-size: 1.6rem; flex-shrink: 0; width: 36px; text-align: center; }
+    .sel-label { font-size: 0.82rem; color: var(--subtle); }
+    .sel-value { font-weight: 600; font-size: 0.93rem; }
+
+    .fit-banner {
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      display: none;
+    }
+    .fit-banner.good { background: #e8f5ec; color: #1e6e33; border: 1px solid #b2dfbb; display: block; }
+    .fit-banner.warn { background: #fff8e1; color: #7a5700; border: 1px solid #ffe082; display: block; }
+
+    .cta-btn {
+      padding: 14px 0;
+      background: var(--brand);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      width: 100%;
+    }
+    .cta-btn:hover { background: var(--brand-dark); }
+    .cta-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    .clear-btn {
+      padding: 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      background: transparent;
+      font-size: 0.88rem;
+      color: var(--subtle);
+      cursor: pointer;
+      transition: all 0.15s;
+      width: 100%;
+    }
+    .clear-btn:hover { border-color: var(--brand); color: var(--brand); }
+
+    /* ── LOADING ── */
+    .loading-row {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      padding: 20px 0;
+    }
+    .skeleton {
+      border-radius: 14px;
+      background: linear-gradient(90deg, #f0e8e2 25%, #e8ddd7 50%, #f0e8e2 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.3s infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--text);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 0.92rem;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 999;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    .no-results { padding: 30px; text-align: center; color: var(--subtle); }
   </style>
 </head>
 <body>
-  <main class="container">
-    <section class="card">
-      <h1>🐾 PawFit Dogwear Shop</h1>
-      <p class="subtitle">Now with online pictures, same-direction dogs, and a simple virtual try-on (swap clothes).</p>
-      <div class="search-row">
-        <input id="dogSearch" placeholder="Search dog species (e.g., Husky, Poodle)" />
+
+<header>
+  <div class="header-inner">
+    <div class="logo">🐾</div>
+    <div class="brand-text">
+      <h1>PawFit Dogwear</h1>
+      <p>Find your dog's breed, pick their outfit, try it on instantly</p>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- STEP 1: Find Your Dog -->
+  <section class="section">
+    <div class="section-title">
+      <span class="step-badge">1</span>
+      Find Your Dog Breed
+    </div>
+
+    <div class="search-bar">
+      <input id="dogSearch" type="search" placeholder="🔍  Search breed (e.g. Husky, Poodle, Corgi…)" autocomplete="off" />
+    </div>
+
+    <div class="filter-pills">
+      <button class="pill active" data-filter="all">All Breeds</button>
+      <button class="pill" data-filter="S">Small</button>
+      <button class="pill" data-filter="M">Medium</button>
+      <button class="pill" data-filter="L">Large</button>
+    </div>
+
+    <div class="dog-grid" id="dogGrid">
+      <!-- filled by JS -->
+    </div>
+  </section>
+
+  <!-- STEP 2: Pick Dogwear -->
+  <section class="section">
+    <div class="section-title">
+      <span class="step-badge">2</span>
+      Pick Dogwear
+    </div>
+    <div class="wear-grid" id="wearGrid">
+      <!-- filled by JS -->
+    </div>
+  </section>
+
+  <!-- STEP 3: Try-On Studio -->
+  <section class="section">
+    <div class="section-title">
+      <span class="step-badge">3</span>
+      Try-On Studio
+    </div>
+
+    <div class="studio-layout">
+      <!-- Left: canvas -->
+      <div>
+        <div class="canvas-wrap" id="canvasWrap">
+          <div class="canvas-empty" id="canvasEmpty">
+            <div class="big-icon">🐶</div>
+            <p>Select a dog breed and a<br>dogwear item to preview</p>
+          </div>
+          <img id="canvasDog" class="canvas-dog" style="display:none" alt="Selected dog" />
+          <div id="canvasWearBadge" class="canvas-wear-badge" style="display:none"></div>
+        </div>
       </div>
-      <p class="muted" style="margin-top: 8px;">All dog images are right-facing icons so direction stays consistent.</p>
-    </section>
 
-    <section class="card">
-      <h2>1) Find Your Dog</h2>
-      <div class="grid" id="dogList"></div>
-    </section>
-
-    <section class="card">
-      <h2>2) Pick Dogwear + Try It Online</h2>
-      <div class="studio">
-        <div>
-          <div class="search-row" style="margin-bottom: 12px;">
-            <select id="selectedDog"><option value="">Select dog species</option></select>
-            <select id="selectedWear"><option value="">Select dogwear</option></select>
-            <button id="tryBtn">Try On</button>
-            <button id="clearBtn" type="button">Clear</button>
+      <!-- Right: summary + actions -->
+      <div class="studio-controls">
+        <div class="selection-summary">
+          <div class="sel-row">
+            <div class="sel-icon">🐶</div>
+            <div>
+              <div class="sel-label">Selected Breed</div>
+              <div class="sel-value" id="selDogName">None</div>
+            </div>
           </div>
-
-          <div class="dog-stage">
-            <img id="dogBase" class="dog-base" alt="Selected dog" />
-            <img id="wearOverlay" class="wear-overlay" alt="Dogwear overlay" hidden />
+          <div class="sel-row">
+            <div class="sel-icon">👕</div>
+            <div>
+              <div class="sel-label">Selected Dogwear</div>
+              <div class="sel-value" id="selWearName">None</div>
+            </div>
           </div>
-          <div id="resultBox" class="result">Select a dog and a dogwear item, then click <strong>Try On</strong>.</div>
         </div>
 
-        <div>
-          <div class="grid" id="wearList"></div>
-        </div>
+        <div class="fit-banner" id="fitBanner"></div>
+
+        <button class="cta-btn" id="addCartBtn" disabled>🛒 Add to Cart</button>
+        <button class="clear-btn" id="clearBtn">Clear Selection</button>
       </div>
-    </section>
-  </main>
+    </div>
+  </section>
 
-  <script>
-    const baseDogIcon = 'https://api.iconify.design/mdi:dog-side.svg';
+</main>
 
-    const dogs = [
-      { id: 'd1', species: 'Golden Retriever', size: 'L', color: 'b67c4b', style: ['friendly', 'outdoor'] },
-      { id: 'd2', species: 'French Bulldog', size: 'M', color: '7a6f66', style: ['urban', 'cozy'] },
-      { id: 'd3', species: 'Pomeranian', size: 'S', color: 'd49257', style: ['cute', 'warm'] },
-      { id: 'd4', species: 'Siberian Husky', size: 'L', color: '8294a6', style: ['sport', 'cold weather'] },
-      { id: 'd5', species: 'Toy Poodle', size: 'S', color: '8a5a3f', style: ['fashion', 'lightweight'] },
-      { id: 'd6', species: 'Beagle', size: 'M', color: '9a6a48', style: ['active', 'all-round'] }
-    ].map(dog => ({
-      ...dog,
-      image: `${baseDogIcon}?color=%23${dog.color}`
-    }));
+<div class="toast" id="toast"></div>
 
-    const wears = [
-      { id: 'w1', name: 'Rain Jacket', fitSizes: ['M', 'L'], bestFor: 'rainy walks', image: 'https://api.iconify.design/mdi:coat-rack.svg?color=%232f77ff' },
-      { id: 'w2', name: 'Winter Sweater', fitSizes: ['S', 'M'], bestFor: 'cold evenings', image: 'https://api.iconify.design/mdi:tshirt-crew.svg?color=%23b5398f' },
-      { id: 'w3', name: 'Summer Tee', fitSizes: ['S', 'M', 'L'], bestFor: 'sunny days', image: 'https://api.iconify.design/mdi:tshirt-v.svg?color=%23ff7f50' },
-      { id: 'w4', name: 'Sport Vest', fitSizes: ['M', 'L'], bestFor: 'night exercise', image: 'https://api.iconify.design/mdi:safety-vest.svg?color=%23f59f00' },
-      { id: 'w5', name: 'Party Bandana', fitSizes: ['S', 'M'], bestFor: 'photos and events', image: 'https://api.iconify.design/mdi:triangle.svg?color=%23e03131' }
-    ];
+<script>
+  // ─────────────────────────────────────────────
+  //  DATA
+  // ─────────────────────────────────────────────
 
-    const dogList = document.getElementById('dogList');
-    const wearList = document.getElementById('wearList');
-    const dogSearch = document.getElementById('dogSearch');
-    const selectedDog = document.getElementById('selectedDog');
-    const selectedWear = document.getElementById('selectedWear');
-    const tryBtn = document.getElementById('tryBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const dogBase = document.getElementById('dogBase');
-    const wearOverlay = document.getElementById('wearOverlay');
-    const resultBox = document.getElementById('resultBox');
+  const dogs = [
+    { id: 'd1', species: 'Golden Retriever', size: 'L',  traits: ['friendly','outdoor'], emoji: '🦮',
+      breedSlug: 'retriever/golden' },
+    { id: 'd2', species: 'French Bulldog',   size: 'M',  traits: ['urban','cozy'],      emoji: '🐶',
+      breedSlug: 'bulldog/french' },
+    { id: 'd3', species: 'Pomeranian',        size: 'S',  traits: ['cute','warm'],       emoji: '🐕',
+      breedSlug: 'pomeranian' },
+    { id: 'd4', species: 'Siberian Husky',    size: 'L',  traits: ['sport','cold'],      emoji: '🐺',
+      breedSlug: 'husky' },
+    { id: 'd5', species: 'Toy Poodle',        size: 'S',  traits: ['fashion','light'],   emoji: '🐩',
+      breedSlug: 'poodle/toy' },
+    { id: 'd6', species: 'Beagle',            size: 'M',  traits: ['active','all-round'],'emoji': '🐕‍🦺',
+      breedSlug: 'beagle' },
+    { id: 'd7', species: 'Shiba Inu',         size: 'M',  traits: ['bold','curious'],    emoji: '🦊',
+      breedSlug: 'shiba' },
+    { id: 'd8', species: 'Corgi',             size: 'S',  traits: ['playful','smart'],   emoji: '🐕',
+      breedSlug: 'corgi/cardigan' },
+    { id: 'd9', species: 'Dalmatian',         size: 'L',  traits: ['energetic','loyal'], emoji: '🐶',
+      breedSlug: 'dalmatian' },
+    { id: 'd10',species: 'Chihuahua',         size: 'S',  traits: ['spunky','alert'],    emoji: '🐾',
+      breedSlug: 'chihuahua' },
+    { id: 'd11',species: 'Border Collie',     size: 'M',  traits: ['agile','clever'],    emoji: '🐕',
+      breedSlug: 'collie/border' },
+    { id: 'd12',species: 'Dachshund',         size: 'S',  traits: ['brave','curious'],   emoji: '🌭',
+      breedSlug: 'dachshund' },
+  ];
 
-    function renderDogs(filter = '') {
-      const key = filter.trim().toLowerCase();
-      const filtered = dogs.filter(d => d.species.toLowerCase().includes(key));
+  const wears = [
+    { id: 'w1', name: 'Rain Jacket',       emoji: '🧥', color: '#dbeafe', fitSizes: ['M','L'],     price: 28.90, bestFor: 'Rainy walks'      },
+    { id: 'w2', name: 'Winter Sweater',    emoji: '🧣', color: '#ede9fe', fitSizes: ['S','M'],     price: 22.50, bestFor: 'Cold evenings'    },
+    { id: 'w3', name: 'Summer Tee',        emoji: '👕', color: '#fef9c3', fitSizes: ['S','M','L'], price: 14.90, bestFor: 'Sunny days'       },
+    { id: 'w4', name: 'Sport Vest',        emoji: '🦺', color: '#fef3c7', fitSizes: ['M','L'],     price: 19.90, bestFor: 'Night exercise'   },
+    { id: 'w5', name: 'Party Bandana',     emoji: '🎀', color: '#fce7f3', fitSizes: ['S','M'],     price: 9.90,  bestFor: 'Photos & events'  },
+    { id: 'w6', name: 'Hiking Harness',    emoji: '⛰️', color: '#d1fae5', fitSizes: ['M','L'],     price: 34.00, bestFor: 'Trail adventures' },
+    { id: 'w7', name: 'Cozy Pyjamas',      emoji: '😴', color: '#e0f2fe', fitSizes: ['S','M','L'], price: 18.00, bestFor: 'Bedtime'         },
+    { id: 'w8', name: 'Birthday Hat',      emoji: '🎉', color: '#fef3c7', fitSizes: ['S','M','L'], price: 7.50,  bestFor: 'Celebrations'    },
+  ];
 
-      dogList.innerHTML = filtered.length ? filtered.map(d => `
-        <article class="dog-item">
-          <img class="dog-pic" src="${d.image}" alt="${d.species} icon" loading="lazy" />
-          <div class="name">${d.species}</div>
-          <div class="meta">Size: ${d.size}</div>
-          ${d.style.map(s => `<span class="tag">${s}</span>`).join('')}
-        </article>
-      `).join('') : '<p>No species found. Try a different keyword.</p>';
-    }
+  // ─────────────────────────────────────────────
+  //  STATE
+  // ─────────────────────────────────────────────
+  let selectedDog  = null;
+  let selectedWear = null;
+  let activeFilter = 'all';
+  let searchQuery  = '';
+  const dogImages  = {};   // id → image URL
 
-    function renderWears() {
-      wearList.innerHTML = wears.map(w => `
-        <article class="wear-item">
-          <img class="wear-pic" src="${w.image}" alt="${w.name}" loading="lazy" />
-          <div class="name">${w.name}</div>
-          <div class="meta">Best for: ${w.bestFor}</div>
-          <div class="meta">Sizes: ${w.fitSizes.join(', ')}</div>
-          <button type="button" data-wear-id="${w.id}" class="quick-try">Try this wear</button>
-        </article>
-      `).join('');
-    }
+  // ─────────────────────────────────────────────
+  //  FETCH dog images from dog.ceo API
+  // ─────────────────────────────────────────────
+  async function fetchDogImage(dog) {
+    try {
+      const res = await fetch(`https://dog.ceo/api/breed/${dog.breedSlug}/images/random`);
+      const json = await res.json();
+      if (json.status === 'success') dogImages[dog.id] = json.message;
+    } catch (_) { /* leave placeholder */ }
+    renderDogCard(dog);
+  }
 
-    function populateSelects() {
-      dogs.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.id;
-        opt.textContent = `${d.species} (${d.size})`;
-        selectedDog.appendChild(opt);
-      });
-      wears.forEach(w => {
-        const opt = document.createElement('option');
-        opt.value = w.id;
-        opt.textContent = w.name;
-        selectedWear.appendChild(opt);
-      });
-    }
-
-    function tryOnOutfit() {
-      const dog = dogs.find(d => d.id === selectedDog.value);
-      const wear = wears.find(w => w.id === selectedWear.value);
-
-      if (!dog || !wear) {
-        resultBox.textContent = 'Please choose both dog species and dogwear first.';
-        return;
-      }
-
-      dogBase.src = dog.image;
-      dogBase.alt = dog.species;
-      wearOverlay.src = wear.image;
-      wearOverlay.alt = `${wear.name} on ${dog.species}`;
-      wearOverlay.hidden = false;
-
-      const fit = wear.fitSizes.includes(dog.size);
-      resultBox.innerHTML = fit
-        ? `<strong>Great match!</strong> ${wear.name} fits ${dog.species} (${dog.size}) and works for ${wear.bestFor}.`
-        : `<strong>Size warning.</strong> ${wear.name} is for ${wear.fitSizes.join(', ')}, but ${dog.species} is ${dog.size}.`;
-    }
-
-    function clearTryOn() {
-      wearOverlay.hidden = true;
-      wearOverlay.removeAttribute('src');
-      resultBox.innerHTML = 'Cleared. Pick another dogwear to test again.';
-    }
-
-    dogSearch.addEventListener('input', e => renderDogs(e.target.value));
-    tryBtn.addEventListener('click', tryOnOutfit);
-    clearBtn.addEventListener('click', clearTryOn);
-
-    wearList.addEventListener('click', event => {
-      const button = event.target.closest('.quick-try');
-      if (!button) return;
-      selectedWear.value = button.dataset.wearId;
-      tryOnOutfit();
+  // ─────────────────────────────────────────────
+  //  RENDER DOGS
+  // ─────────────────────────────────────────────
+  function getFilteredDogs() {
+    const q = searchQuery.toLowerCase();
+    return dogs.filter(d => {
+      const matchSearch = !q || d.species.toLowerCase().includes(q)
+                              || d.traits.some(t => t.includes(q));
+      const matchSize   = activeFilter === 'all' || d.size === activeFilter;
+      return matchSearch && matchSize;
     });
+  }
 
-    selectedDog.addEventListener('change', () => {
-      const dog = dogs.find(d => d.id === selectedDog.value);
-      if (dog) {
-        dogBase.src = dog.image;
-        dogBase.alt = dog.species;
-      }
+  function renderDogCard(dog) {
+    const el = document.querySelector(`[data-dog-id="${dog.id}"]`);
+    if (!el) return;
+    const imgUrl = dogImages[dog.id];
+    const photoHtml = imgUrl
+      ? `<img class="dog-photo" src="${imgUrl}" alt="${dog.species}" loading="lazy" />`
+      : `<div class="dog-photo-placeholder">${dog.emoji}</div>`;
+
+    el.querySelector('.dog-photo-wrap').innerHTML = photoHtml;
+  }
+
+  function renderDogs() {
+    const grid = document.getElementById('dogGrid');
+    const filtered = getFilteredDogs();
+
+    if (!filtered.length) {
+      grid.innerHTML = '<div class="no-results">🐾 No breeds found. Try a different search.</div>';
+      return;
+    }
+
+    grid.innerHTML = filtered.map(d => {
+      const imgUrl = dogImages[d.id];
+      const photoHtml = imgUrl
+        ? `<img class="dog-photo" src="${imgUrl}" alt="${d.species}" loading="lazy" />`
+        : `<div class="dog-photo-placeholder">${d.emoji}</div>`;
+
+      const isSelected = selectedDog && selectedDog.id === d.id;
+      return `
+        <div class="dog-card ${isSelected ? 'selected' : ''}" data-dog-id="${d.id}" role="button" tabindex="0">
+          <div class="dog-photo-wrap">${photoHtml}</div>
+          <div class="dog-info">
+            <div class="dog-name">${d.species}</div>
+            <div class="dog-meta">${d.traits.join(' · ')}</div>
+            <span class="size-chip">Size ${d.size}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    grid.querySelectorAll('.dog-card').forEach(card => {
+      card.addEventListener('click', () => selectDog(card.dataset.dogId));
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') selectDog(card.dataset.dogId); });
     });
+  }
 
+  // ─────────────────────────────────────────────
+  //  RENDER WEARS
+  // ─────────────────────────────────────────────
+  function renderWears() {
+    const grid = document.getElementById('wearGrid');
+    grid.innerHTML = wears.map(w => {
+      const isSelected = selectedWear && selectedWear.id === w.id;
+      return `
+        <div class="wear-card ${isSelected ? 'selected' : ''}" data-wear-id="${w.id}" role="button" tabindex="0">
+          <div class="wear-thumb" style="background:${w.color};">${w.emoji}</div>
+          <div class="wear-info">
+            <div class="wear-name">${w.name}</div>
+            <div class="wear-desc">${w.bestFor}</div>
+            <div class="wear-desc">Sizes: ${w.fitSizes.join(', ')}</div>
+            <div class="wear-price">$${w.price.toFixed(2)}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    grid.querySelectorAll('.wear-card').forEach(card => {
+      card.addEventListener('click', () => selectWear(card.dataset.wearId));
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') selectWear(card.dataset.wearId); });
+    });
+  }
+
+  // ─────────────────────────────────────────────
+  //  SELECT HANDLERS
+  // ─────────────────────────────────────────────
+  function selectDog(id) {
+    selectedDog = dogs.find(d => d.id === id) || null;
+    renderDogs();
+    updateStudio();
+  }
+
+  function selectWear(id) {
+    selectedWear = wears.find(w => w.id === id) || null;
+    renderWears();
+    updateStudio();
+  }
+
+  // ─────────────────────────────────────────────
+  //  STUDIO
+  // ─────────────────────────────────────────────
+  function updateStudio() {
+    const canvasEmpty    = document.getElementById('canvasEmpty');
+    const canvasDog      = document.getElementById('canvasDog');
+    const canvasWearBadge= document.getElementById('canvasWearBadge');
+    const selDogName     = document.getElementById('selDogName');
+    const selWearName    = document.getElementById('selWearName');
+    const fitBanner      = document.getElementById('fitBanner');
+    const addCartBtn     = document.getElementById('addCartBtn');
+
+    selDogName.textContent  = selectedDog  ? `${selectedDog.species} (Size ${selectedDog.size})`  : 'None';
+    selWearName.textContent = selectedWear ? `${selectedWear.name} — $${selectedWear.price.toFixed(2)}` : 'None';
+
+    if (selectedDog) {
+      canvasEmpty.style.display = 'none';
+      canvasDog.style.display   = 'block';
+      const imgUrl = dogImages[selectedDog.id];
+      if (imgUrl) {
+        canvasDog.src = imgUrl;
+      } else {
+        // show emoji fallback inside the canvas
+        canvasDog.style.display = 'none';
+        canvasEmpty.style.display = 'flex';
+        canvasEmpty.innerHTML = `<div style="font-size:6rem;text-align:center">${selectedDog.emoji}<br><p style="font-size:1rem;margin-top:8px">${selectedDog.species}</p></div>`;
+      }
+    } else {
+      canvasEmpty.style.display = 'flex';
+      canvasEmpty.innerHTML = `<div class="canvas-empty"><div class="big-icon">🐶</div><p>Select a dog breed and a<br>dogwear item to preview</p></div>`;
+      canvasDog.style.display = 'none';
+    }
+
+    if (selectedWear) {
+      canvasWearBadge.style.display = 'flex';
+      canvasWearBadge.textContent   = selectedWear.emoji;
+    } else {
+      canvasWearBadge.style.display = 'none';
+    }
+
+    fitBanner.className = 'fit-banner';
+    if (selectedDog && selectedWear) {
+      const fits = selectedWear.fitSizes.includes(selectedDog.size);
+      fitBanner.className = fits ? 'fit-banner good' : 'fit-banner warn';
+      fitBanner.innerHTML = fits
+        ? `✅ <strong>Great fit!</strong> ${selectedWear.name} is made for size ${selectedWear.fitSizes.join('/')} — perfect for your ${selectedDog.species}.`
+        : `⚠️ <strong>Size mismatch.</strong> ${selectedWear.name} fits sizes ${selectedWear.fitSizes.join('/')} but your ${selectedDog.species} is size ${selectedDog.size}.`;
+      addCartBtn.disabled = false;
+    } else {
+      addCartBtn.disabled = true;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  //  TOAST
+  // ─────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  // ─────────────────────────────────────────────
+  //  EVENTS
+  // ─────────────────────────────────────────────
+  document.getElementById('dogSearch').addEventListener('input', e => {
+    searchQuery = e.target.value;
+    renderDogs();
+  });
+
+  document.querySelectorAll('.pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      activeFilter = pill.dataset.filter;
+      renderDogs();
+    });
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    selectedDog = null;
+    selectedWear = null;
     renderDogs();
     renderWears();
-    populateSelects();
-    dogBase.src = dogs[0].image;
-    dogBase.alt = dogs[0].species;
-  </script>
+    updateStudio();
+  });
+
+  document.getElementById('addCartBtn').addEventListener('click', () => {
+    if (selectedDog && selectedWear) {
+      showToast(`🛒 Added ${selectedWear.name} for ${selectedDog.species}!`);
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  //  INIT
+  // ─────────────────────────────────────────────
+  renderDogs();
+  renderWears();
+  updateStudio();
+
+  // Fetch dog images from the Dog CEO API in background
+  dogs.forEach(dog => fetchDogImage(dog));
+</script>
 </body>
 </html>
