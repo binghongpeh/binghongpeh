@@ -1,529 +1,474 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Snake Game</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Three.js Receipt Physics UI</title>
   <style>
-    * {
+    :root {
+      --bg: #ffffff;
+      --ink: #202124;
+      --sub: #6b7280;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
       margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      background: #1a1a2e;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #eee;
-      touch-action: none;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
-      -webkit-user-select: none;
+      background: var(--bg);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      color: var(--ink);
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      cursor: grab;
+    }
+
+    #app.dragging {
+      cursor: grabbing;
+    }
+
+    .hud {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      padding: 8px 14px;
+      font-size: 12px;
+      line-height: 1.2;
+      backdrop-filter: blur(6px);
       user-select: none;
-    }
-
-    .game-container {
-      text-align: center;
-    }
-
-    h1 {
-      margin-bottom: 10px;
-      font-size: 2rem;
-      color: #00d4aa;
-    }
-
-    .score-board {
-      display: flex;
-      justify-content: center;
-      gap: 40px;
-      margin-bottom: 12px;
-      font-size: 1.1rem;
-    }
-
-    .score-board span {
-      color: #00d4aa;
-      font-weight: bold;
-    }
-
-    canvas {
-      border: 2px solid #00d4aa;
-      border-radius: 4px;
-      background: #16213e;
-      display: block;
-      margin: 0 auto;
-    }
-
-    .instructions {
-      margin-top: 14px;
-      font-size: 0.9rem;
-      color: #888;
-    }
-
-    .overlay {
-      position: absolute;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(0, 0, 0, 0.75);
-      border-radius: 4px;
-      z-index: 10;
       pointer-events: none;
+      white-space: nowrap;
     }
 
-    .overlay h2 {
-      font-size: 1.8rem;
-      margin-bottom: 8px;
-    }
-
-    .overlay p {
-      font-size: 1rem;
-      color: #ccc;
-    }
-
-    .overlay.touchable {
-      pointer-events: auto;
-      cursor: pointer;
-    }
-
-    /* D-pad controls for touch devices */
-    .dpad {
-      display: none;
-      margin: 20px auto 0;
-      width: 180px;
-      height: 180px;
-      position: relative;
-    }
-
-    .dpad-btn {
-      position: absolute;
-      width: 56px;
-      height: 56px;
-      background: rgba(0, 212, 170, 0.15);
-      border: 2px solid #00d4aa;
-      border-radius: 12px;
-      color: #00d4aa;
-      font-size: 1.5rem;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      transition: background 0.1s;
-    }
-
-    .dpad-btn:active {
-      background: rgba(0, 212, 170, 0.4);
-    }
-
-    .dpad-up    { top: 0; left: 50%; transform: translateX(-50%); }
-    .dpad-down  { bottom: 0; left: 50%; transform: translateX(-50%); }
-    .dpad-left  { left: 0; top: 50%; transform: translateY(-50%); }
-    .dpad-right { right: 0; top: 50%; transform: translateY(-50%); }
-
-    .pause-btn {
-      display: none;
-      margin: 12px auto 0;
-      padding: 10px 32px;
-      background: rgba(0, 212, 170, 0.15);
-      border: 2px solid #00d4aa;
-      border-radius: 12px;
-      color: #00d4aa;
-      font-size: 1rem;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .pause-btn:active {
-      background: rgba(0, 212, 170, 0.4);
-    }
-
-    @media (pointer: coarse) {
-      .dpad, .pause-btn {
-        display: block;
-      }
-      .instructions {
-        display: none;
-      }
-      .touch-instructions {
-        display: block;
-      }
-    }
-
-    .touch-instructions {
-      display: none;
-      margin-top: 14px;
-      font-size: 0.9rem;
-      color: #888;
-    }
+    .hud b { color: #111827; }
+    .hud span { color: var(--sub); }
   </style>
 </head>
 <body>
-  <div class="game-container">
-    <h1>Snake Game</h1>
-    <div class="score-board">
-      <div>Score: <span id="score">0</span></div>
-      <div>High Score: <span id="high-score">0</span></div>
-    </div>
-    <div style="position: relative; display: inline-block;">
-      <canvas id="game-canvas" width="400" height="400"></canvas>
-      <div class="overlay" id="overlay">
-        <h2 id="overlay-title">Snake</h2>
-        <p id="overlay-message">Press any arrow key or WASD to start</p>
-      </div>
-    </div>
-    <div class="instructions">
-      Arrow keys or WASD to move &bull; P to pause
-    </div>
-    <div class="touch-instructions">
-      Swipe or use D-pad to move
-    </div>
-    <div class="dpad" id="dpad">
-      <button class="dpad-btn dpad-up" data-dir="up">&#9650;</button>
-      <button class="dpad-btn dpad-down" data-dir="down">&#9660;</button>
-      <button class="dpad-btn dpad-left" data-dir="left">&#9664;</button>
-      <button class="dpad-btn dpad-right" data-dir="right">&#9654;</button>
-    </div>
-    <button class="pause-btn" id="pause-btn">Pause</button>
-  </div>
+  <div id="app"></div>
+  <div class="hud"><b>左键</b>抓取并拖拽小票 · 可自然弯曲/折叠/回弹 <span>（顶部整条约束为刚性直线）</span></div>
 
-  <script>
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
-    const overlay = document.getElementById('overlay');
-    const overlayTitle = document.getElementById('overlay-title');
-    const overlayMessage = document.getElementById('overlay-message');
-    const scoreEl = document.getElementById('score');
-    const highScoreEl = document.getElementById('high-score');
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js';
 
-    const GRID_SIZE = 20;
-    const TILE_COUNT = canvas.width / GRID_SIZE;
-    const TICK_RATE = 100; // ms per game tick
+    // ---------- Renderer / Scene ----------
+    const container = document.getElementById('app');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
 
-    let snake, direction, nextDirection, food, score, highScore, gameState, loopId;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
 
-    // Game states: 'waiting', 'running', 'paused', 'gameover'
-    highScore = parseInt(localStorage.getItem('snakeHighScore') || '0', 10);
-    highScoreEl.textContent = highScore;
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 20);
+    camera.position.set(0, 0.2, 2.0);
 
-    function init() {
-      snake = [
-        { x: Math.floor(TILE_COUNT / 2), y: Math.floor(TILE_COUNT / 2) }
+    // ---------- Lighting ----------
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xf2f2f2, 0.85);
+    scene.add(hemi);
+
+    const key = new THREE.DirectionalLight(0xffffff, 1.05);
+    key.position.set(1.2, 1.9, 1.4);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.near = 0.1;
+    key.shadow.camera.far = 6;
+    key.shadow.camera.left = -1.2;
+    key.shadow.camera.right = 1.2;
+    key.shadow.camera.top = 1.2;
+    key.shadow.camera.bottom = -1.2;
+    scene.add(key);
+
+    const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+    fill.position.set(-1.2, 0.8, 1.2);
+    scene.add(fill);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(6, 6),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.0 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -1.05;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // ---------- Receipt Texture (thermal paper style + funny list) ----------
+    function makeReceiptTexture() {
+      const c = document.createElement('canvas');
+      c.width = 1024;
+      c.height = 1536;
+      const ctx = c.getContext('2d');
+
+      // Slightly warm thermal paper tint
+      ctx.fillStyle = '#fbfaf5';
+      ctx.fillRect(0, 0, c.width, c.height);
+
+      // subtle noise/grain
+      const img = ctx.getImageData(0, 0, c.width, c.height);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() - 0.5) * 8;
+        d[i] += n;
+        d[i + 1] += n;
+        d[i + 2] += n * 0.8;
+      }
+      ctx.putImageData(img, 0, 0);
+
+      // faded top header band
+      ctx.fillStyle = 'rgba(0,0,0,0.035)';
+      ctx.fillRect(80, 70, c.width - 160, 80);
+
+      ctx.fillStyle = '#1e1e1e';
+      ctx.font = 'bold 48px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('3D TERMINOLOGY MART', c.width / 2, 132);
+
+      ctx.font = '30px "Courier New", monospace';
+      ctx.fillText('THERMAL RECEIPT', c.width / 2, 188);
+      ctx.textAlign = 'left';
+
+      ctx.font = '28px "Courier New", monospace';
+      ctx.fillText('--------------------------------------------', 95, 258);
+      ctx.fillText('QTY  ITEM                     PRICE', 110, 304);
+      ctx.fillText('--------------------------------------------', 95, 346);
+
+      const lines = [
+        ['2', 'Normal Map 薯片', '$3.20'],
+        ['1', 'Phong 光照奶茶', '$5.50'],
+        ['4', 'Bezier 曲线薯条', '$7.80'],
+        ['1', 'LOD 折扣盲盒', '$2.40'],
+        ['3', 'UV 展开饼干', '$6.66'],
+        ['1', 'Raycast 抓娃娃券', '$1.20'],
+        ['2', 'PBR 真实感豆腐', '$8.88'],
+        ['1', 'Quaternion 旋转糖', '$4.44'],
+        ['5', 'Vertex 顶点汤圆', '$9.99'],
       ];
-      direction = { x: 0, y: 0 };
-      nextDirection = { x: 0, y: 0 };
-      score = 0;
-      scoreEl.textContent = score;
-      spawnFood();
-      gameState = 'waiting';
-      showOverlay('Snake', isTouchDevice() ? 'Swipe or tap a direction to start' : 'Press any arrow key or WASD to start');
-      draw();
-    }
 
-    function isTouchDevice() {
-      return window.matchMedia('(pointer: coarse)').matches;
-    }
-
-    function spawnFood() {
-      while (true) {
-        food = {
-          x: Math.floor(Math.random() * TILE_COUNT),
-          y: Math.floor(Math.random() * TILE_COUNT)
-        };
-        // Make sure food doesn't spawn on the snake
-        if (!snake.some(seg => seg.x === food.x && seg.y === food.y)) break;
-      }
-    }
-
-    function showOverlay(title, message, tappable) {
-      overlayTitle.textContent = title;
-      overlayMessage.textContent = message;
-      overlay.style.display = 'flex';
-      overlay.style.width = canvas.offsetWidth + 'px';
-      overlay.style.height = canvas.offsetHeight + 'px';
-      if (tappable) {
-        overlay.classList.add('touchable');
-      } else {
-        overlay.classList.remove('touchable');
-      }
-    }
-
-    function hideOverlay() {
-      overlay.style.display = 'none';
-    }
-
-    function startGame() {
-      gameState = 'running';
-      hideOverlay();
-      loopId = setInterval(tick, TICK_RATE);
-    }
-
-    function tick() {
-      if (gameState !== 'running') return;
-
-      direction = { ...nextDirection };
-
-      const head = {
-        x: snake[0].x + direction.x,
-        y: snake[0].y + direction.y
-      };
-
-      // Wall collision
-      if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
-        return gameOver();
+      let y = 402;
+      for (const row of lines) {
+        ctx.fillText(row[0], 120, y);
+        ctx.fillText(row[1], 180, y);
+        ctx.fillText(row[2], 780, y);
+        y += 86;
       }
 
-      // Self collision
-      if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
-        return gameOver();
+      ctx.fillText('--------------------------------------------', 95, y + 10);
+      ctx.font = 'bold 34px "Courier New", monospace';
+      ctx.fillText('TOTAL', 130, y + 90);
+      ctx.fillText('$50.07', 760, y + 90);
+
+      ctx.font = '26px "Courier New", monospace';
+      ctx.fillText('Render Pass: APPROVED', 130, y + 165);
+      ctx.fillText('FPS: 60 (希望如此)', 130, y + 212);
+      ctx.fillText('NO REFUNDS ON NAN VALUES', 130, y + 260);
+      ctx.fillText('THANK YOU, SEE YOU IN SHADERLAND!', 130, y + 330);
+
+      // subtle vertical streaks common on thermal prints
+      for (let i = 0; i < 18; i++) {
+        const x = 80 + Math.random() * (c.width - 160);
+        const alpha = 0.02 + Math.random() * 0.03;
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.fillRect(x, 70, 1 + Math.random() * 2, c.height - 120);
       }
 
-      snake.unshift(head);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      tex.needsUpdate = true;
+      return tex;
+    }
 
-      // Eat food
-      if (head.x === food.x && head.y === food.y) {
-        score++;
-        scoreEl.textContent = score;
-        if (score > highScore) {
-          highScore = score;
-          highScoreEl.textContent = highScore;
-          localStorage.setItem('snakeHighScore', highScore);
+    // ---------- Verlet cloth receipt ----------
+    const SEG_X = 22;         // width particles
+    const SEG_Y = 38;         // height particles
+    const WIDTH = 0.62;
+    const HEIGHT = 1.15;
+    const DX = WIDTH / SEG_X;
+    const DY = HEIGHT / SEG_Y;
+
+    const GRAVITY = new THREE.Vector3(0, -9.0, 0);
+    const DRAG = 0.985;
+    const BOUNCE = 0.16;
+    const ITERATIONS = 6;
+    const BEND_STIFFNESS = 0.28;
+    const STRUCT_STIFFNESS = 0.96;
+
+    class Particle {
+      constructor(x, y, pinned = false) {
+        this.pos = new THREE.Vector3(x, y, 0);
+        this.prev = this.pos.clone();
+        this.acc = new THREE.Vector3();
+        this.pinned = pinned;
+      }
+
+      addForce(f) { this.acc.add(f); }
+
+      integrate(dt2) {
+        if (this.pinned) {
+          this.acc.set(0, 0, 0);
+          this.prev.copy(this.pos);
+          return;
         }
-        spawnFood();
-      } else {
-        snake.pop();
+        const vel = this.pos.clone().sub(this.prev).multiplyScalar(DRAG);
+        this.prev.copy(this.pos);
+        this.pos.add(vel).addScaledVector(this.acc, dt2);
+        this.acc.set(0, 0, 0);
       }
-
-      draw();
     }
 
-    function gameOver() {
-      clearInterval(loopId);
-      gameState = 'gameover';
-      showOverlay('Game Over', `Score: ${score} — ${isTouchDevice() ? 'Tap to restart' : 'Press any key to restart'}`, true);
+    const particles = [];
+    const idx = (x, y) => y * (SEG_X + 1) + x;
+
+    const originTopY = HEIGHT * 0.5;
+    const originTopX = -WIDTH * 0.5;
+
+    for (let y = 0; y <= SEG_Y; y++) {
+      for (let x = 0; x <= SEG_X; x++) {
+        const px = -WIDTH * 0.5 + x * DX;
+        const py = HEIGHT * 0.5 - y * DY;
+        // Entire top edge is pinned => full straight edge constraint
+        particles.push(new Particle(px, py, y === 0));
+      }
     }
 
-    function draw() {
-      // Background
-      ctx.fillStyle = '#16213e';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const constraints = [];
+    function addConstraint(a, b, rest, stiff) {
+      constraints.push({ a, b, rest, stiff });
+    }
 
-      // Grid lines (subtle)
-      ctx.strokeStyle = '#1a2744';
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i <= TILE_COUNT; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i * GRID_SIZE, 0);
-        ctx.lineTo(i * GRID_SIZE, canvas.height);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, i * GRID_SIZE);
-        ctx.lineTo(canvas.width, i * GRID_SIZE);
-        ctx.stroke();
-      }
-
-      // Food
-      ctx.fillStyle = '#ff6b6b';
-      ctx.shadowColor = '#ff6b6b';
-      ctx.shadowBlur = 8;
-      roundRect(food.x * GRID_SIZE + 1, food.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2, 4);
-      ctx.shadowBlur = 0;
-
-      // Snake
-      snake.forEach((seg, i) => {
-        const ratio = 1 - (i / snake.length) * 0.5;
-        const g = Math.floor(212 * ratio);
-        const b = Math.floor(170 * ratio);
-        ctx.fillStyle = `rgb(0, ${g}, ${b})`;
-        if (i === 0) {
-          ctx.shadowColor = '#00d4aa';
-          ctx.shadowBlur = 6;
+    for (let y = 0; y <= SEG_Y; y++) {
+      for (let x = 0; x <= SEG_X; x++) {
+        if (x < SEG_X) addConstraint(idx(x, y), idx(x + 1, y), DX, STRUCT_STIFFNESS);
+        if (y < SEG_Y) addConstraint(idx(x, y), idx(x, y + 1), DY, STRUCT_STIFFNESS);
+        // shear
+        if (x < SEG_X && y < SEG_Y) {
+          addConstraint(idx(x, y), idx(x + 1, y + 1), Math.hypot(DX, DY), 0.6);
+          addConstraint(idx(x + 1, y), idx(x, y + 1), Math.hypot(DX, DY), 0.6);
         }
-        roundRect(seg.x * GRID_SIZE + 1, seg.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2, 4);
-        if (i === 0) ctx.shadowBlur = 0;
-      });
-    }
-
-    function roundRect(x, y, w, h, r) {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Input handling
-    document.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      const directionKeys = ['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'];
-
-      if (gameState === 'gameover') {
-        init();
-        return;
+        // bend (2-step)
+        if (x < SEG_X - 1) addConstraint(idx(x, y), idx(x + 2, y), DX * 2, BEND_STIFFNESS);
+        if (y < SEG_Y - 1) addConstraint(idx(x, y), idx(x, y + 2), DY * 2, BEND_STIFFNESS);
       }
+    }
 
-      if (key === 'p' && (gameState === 'running' || gameState === 'paused')) {
-        if (gameState === 'running') {
-          gameState = 'paused';
-          clearInterval(loopId);
-          showOverlay('Paused', 'Press P to resume');
-        } else {
-          gameState = 'running';
-          hideOverlay();
-          loopId = setInterval(tick, TICK_RATE);
+    const geo = new THREE.PlaneGeometry(WIDTH, HEIGHT, SEG_X, SEG_Y);
+    const mat = new THREE.MeshStandardMaterial({
+      map: makeReceiptTexture(),
+      side: THREE.DoubleSide,
+      roughness: 0.9,
+      metalness: 0.0,
+      envMapIntensity: 0.15
+    });
+
+    const receipt = new THREE.Mesh(geo, mat);
+    receipt.position.set(0, 0.02, 0);
+    receipt.castShadow = true;
+    receipt.receiveShadow = false;
+    scene.add(receipt);
+
+    const posAttr = geo.attributes.position;
+
+    // ---------- Interaction ----------
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const tempHit = new THREE.Vector3();
+    const app = document.getElementById('app');
+
+    let grabbed = null;
+    let grabOffset = new THREE.Vector3();
+
+    function setMouse(e) {
+      const r = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    }
+
+    function findNearestParticle(worldPoint) {
+      let best = null;
+      let minD2 = 0.012 * 0.012;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        if (p.pinned) continue; // top edge cannot be grabbed, keep edge perfect
+        const d2 = p.pos.distanceToSquared(worldPoint);
+        if (d2 < minD2) {
+          minD2 = d2;
+          best = i;
         }
-        return;
       }
+      return best;
+    }
 
-      if (gameState === 'waiting' && directionKeys.includes(key)) {
-        setDirection(key);
-        startGame();
-        return;
-      }
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      setMouse(e);
+      raycaster.setFromCamera(mouse, camera);
+      if (!raycaster.ray.intersectPlane(dragPlane, tempHit)) return;
 
-      if (gameState === 'running') {
-        setDirection(key);
+      const local = receipt.worldToLocal(tempHit.clone());
+      const i = findNearestParticle(local);
+      if (i !== null) {
+        grabbed = i;
+        grabOffset.copy(particles[i].pos).sub(local);
+        app.classList.add('dragging');
       }
     });
 
-    function setDirection(key) {
-      switch (key) {
-        case 'arrowup':
-        case 'w':
-          if (direction.y !== 1) nextDirection = { x: 0, y: -1 };
-          break;
-        case 'arrowdown':
-        case 's':
-          if (direction.y !== -1) nextDirection = { x: 0, y: 1 };
-          break;
-        case 'arrowleft':
-        case 'a':
-          if (direction.x !== 1) nextDirection = { x: -1, y: 0 };
-          break;
-        case 'arrowright':
-        case 'd':
-          if (direction.x !== -1) nextDirection = { x: 1, y: 0 };
-          break;
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (grabbed === null) return;
+      setMouse(e);
+      raycaster.setFromCamera(mouse, camera);
+      if (!raycaster.ray.intersectPlane(dragPlane, tempHit)) return;
+
+      const local = receipt.worldToLocal(tempHit.clone());
+      const target = local.add(grabOffset);
+      const p = particles[grabbed];
+
+      // Verlet-friendly dragging: move current, keep prev near for smooth swing
+      const move = target.clone().sub(p.pos);
+      p.pos.addScaledVector(move, 0.72);
+      p.prev.addScaledVector(move, 0.45);
+
+      // induce local fold / wrinkle by moving neighbors with falloff
+      const gx = grabbed % (SEG_X + 1);
+      const gy = Math.floor(grabbed / (SEG_X + 1));
+      for (let oy = -2; oy <= 2; oy++) {
+        for (let ox = -2; ox <= 2; ox++) {
+          const nx = gx + ox;
+          const ny = gy + oy;
+          if (nx < 0 || nx > SEG_X || ny < 1 || ny > SEG_Y) continue;
+          const ni = idx(nx, ny);
+          if (ni === grabbed) continue;
+          const q = particles[ni];
+          const dist = Math.hypot(ox, oy);
+          const inf = Math.max(0, 1 - dist / 3);
+          const zKick = (Math.random() - 0.5) * 0.0025 * inf;
+          q.pos.z += zKick;
+          q.prev.z -= zKick * 0.5;
+          q.pos.addScaledVector(move, 0.1 * inf);
+        }
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      grabbed = null;
+      app.classList.remove('dragging');
+    });
+
+    window.addEventListener('pointercancel', () => {
+      grabbed = null;
+      app.classList.remove('dragging');
+    });
+
+    // ---------- Solver ----------
+    function satisfy(c) {
+      const p1 = particles[c.a];
+      const p2 = particles[c.b];
+      const delta = p2.pos.clone().sub(p1.pos);
+      let len = delta.length();
+      if (len < 1e-6) len = 1e-6;
+      const diff = (len - c.rest) / len;
+      const corr = delta.multiplyScalar(0.5 * diff * c.stiff);
+
+      if (!p1.pinned) p1.pos.add(corr);
+      if (!p2.pinned) p2.pos.sub(corr);
+    }
+
+    function enforceTopRigidLine() {
+      // Hard-constraint entire top edge as a straight horizontal line.
+      // This prevents any middle sagging/"clothesline" effect.
+      for (let x = 0; x <= SEG_X; x++) {
+        const p = particles[idx(x, 0)];
+        p.pos.set(originTopX + x * DX, originTopY, 0);
+        p.prev.copy(p.pos);
       }
     }
 
-    // Touch / swipe handling
-    let touchStartX = 0;
-    let touchStartY = 0;
+    const clock = new THREE.Clock();
+    let acc = 0;
+    const FIXED = 1 / 60;
 
-    canvas.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-    }, { passive: false });
+    function step(dt) {
+      const dt2 = dt * dt;
 
-    canvas.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      const touch = e.changedTouches[0];
-      const dx = touch.clientX - touchStartX;
-      const dy = touch.clientY - touchStartY;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.addForce(GRAVITY);
+        // tiny air jitter for natural micro wrinkles
+        if (!p.pinned) {
+          p.acc.x += (Math.random() - 0.5) * 0.2;
+          p.acc.z += (Math.random() - 0.5) * 0.4;
+        }
+        p.integrate(dt2);
 
-      // Need a minimum swipe distance
-      if (Math.max(absDx, absDy) < 20) return;
-
-      let dir;
-      if (absDx > absDy) {
-        dir = dx > 0 ? 'right' : 'left';
-      } else {
-        dir = dy > 0 ? 'down' : 'up';
+        // floor collision
+        if (p.pos.y < -0.98) {
+          p.pos.y = -0.98;
+          const vy = p.prev.y - p.pos.y;
+          p.prev.y = p.pos.y - vy * BOUNCE;
+        }
       }
 
-      handleDirection(dir);
-    }, { passive: false });
-
-    // Overlay tap to restart
-    overlay.addEventListener('touchend', (e) => {
-      if (gameState === 'gameover') {
-        e.preventDefault();
-        e.stopPropagation();
-        init();
-      }
-    });
-    overlay.addEventListener('click', () => {
-      if (gameState === 'gameover') init();
-    });
-
-    // D-pad buttons
-    document.querySelectorAll('.dpad-btn').forEach(btn => {
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        handleDirection(btn.dataset.dir);
-      }, { passive: false });
-      btn.addEventListener('click', () => {
-        handleDirection(btn.dataset.dir);
-      });
-    });
-
-    // Pause button
-    document.getElementById('pause-btn').addEventListener('click', () => {
-      if (gameState === 'running') {
-        gameState = 'paused';
-        clearInterval(loopId);
-        showOverlay('Paused', 'Tap pause to resume');
-      } else if (gameState === 'paused') {
-        gameState = 'running';
-        hideOverlay();
-        loopId = setInterval(tick, TICK_RATE);
-      }
-    });
-
-    function handleDirection(dir) {
-      if (gameState === 'gameover') {
-        init();
-        return;
-      }
-
-      const keyMap = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright' };
-      const key = keyMap[dir];
-      if (!key) return;
-
-      if (gameState === 'waiting') {
-        setDirection(key);
-        startGame();
-        return;
-      }
-
-      if (gameState === 'running') {
-        setDirection(key);
+      // stronger solver passes keep paper shape stable while lower part remains soft
+      for (let k = 0; k < ITERATIONS; k++) {
+        for (let i = 0; i < constraints.length; i++) satisfy(constraints[i]);
+        enforceTopRigidLine();
       }
     }
 
-    // Responsive canvas sizing
-    function resizeCanvas() {
-      const maxSize = Math.min(window.innerWidth - 32, window.innerHeight - 300, 500);
-      const size = Math.max(280, Math.floor(maxSize / TILE_COUNT) * TILE_COUNT);
-      canvas.style.width = size + 'px';
-      canvas.style.height = size + 'px';
-      // Update overlay to match
-      if (overlay.style.display === 'flex') {
-        overlay.style.width = size + 'px';
-        overlay.style.height = size + 'px';
+    function syncGeometry() {
+      const arr = posAttr.array;
+      for (let y = 0; y <= SEG_Y; y++) {
+        for (let x = 0; x <= SEG_X; x++) {
+          const i = idx(x, y);
+          const p = particles[i].pos;
+          const j = i * 3;
+          arr[j] = p.x;
+          arr[j + 1] = p.y;
+          arr[j + 2] = p.z;
+        }
       }
+      posAttr.needsUpdate = true;
+      geo.computeVertexNormals();
     }
 
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    // ---------- Render loop ----------
+    function animate() {
+      requestAnimationFrame(animate);
 
-    // Start
-    init();
+      // fixed time-step for stable cloth behavior and consistent performance
+      acc += Math.min(clock.getDelta(), 0.033);
+      while (acc >= FIXED) {
+        step(FIXED);
+        acc -= FIXED;
+      }
+
+      syncGeometry();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ---------- Resize ----------
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   </script>
 </body>
 </html>
