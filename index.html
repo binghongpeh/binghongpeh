@@ -1,529 +1,343 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Snake Game</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PawFit Dogwear Shop</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    :root {
+      --bg: #fff8f2;
+      --card: #ffffff;
+      --text: #2b2521;
+      --subtle: #6f645d;
+      --brand: #ff7f50;
+      --brand-dark: #e46638;
+      --border: #f2d9ca;
+      --ok: #2f9e44;
     }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #1a1a2e;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #eee;
-      touch-action: none;
-      overflow: hidden;
-      -webkit-user-select: none;
-      user-select: none;
+      padding: 24px 14px;
     }
 
-    .game-container {
-      text-align: center;
-    }
-
-    h1 {
-      margin-bottom: 10px;
-      font-size: 2rem;
-      color: #00d4aa;
-    }
-
-    .score-board {
-      display: flex;
-      justify-content: center;
-      gap: 40px;
-      margin-bottom: 12px;
-      font-size: 1.1rem;
-    }
-
-    .score-board span {
-      color: #00d4aa;
-      font-weight: bold;
-    }
-
-    canvas {
-      border: 2px solid #00d4aa;
-      border-radius: 4px;
-      background: #16213e;
-      display: block;
+    .container {
+      max-width: 1050px;
       margin: 0 auto;
+      display: grid;
+      gap: 16px;
     }
 
-    .instructions {
-      margin-top: 14px;
-      font-size: 0.9rem;
-      color: #888;
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
     }
 
-    .overlay {
-      position: absolute;
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    h2 { margin-bottom: 10px; }
+    .subtitle { color: var(--subtle); margin-bottom: 12px; }
+
+    .search-row {
       display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(0, 0, 0, 0.75);
-      border-radius: 4px;
-      z-index: 10;
-      pointer-events: none;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
-    .overlay h2 {
-      font-size: 1.8rem;
+    input, button, select {
+      border-radius: 10px;
+      border: 1px solid #eadbd2;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+
+    input, select { flex: 1; min-width: 180px; }
+
+    button {
+      background: var(--brand);
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover { background: var(--brand-dark); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .dog-item, .wear-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fffdfb;
+      padding: 12px;
+    }
+
+    .dog-pic {
+      width: 100%;
+      height: 120px;
+      object-fit: contain;
+      background: #fff3eb;
+      border-radius: 10px;
       margin-bottom: 8px;
+      padding: 8px;
     }
 
-    .overlay p {
-      font-size: 1rem;
-      color: #ccc;
+    .wear-pic {
+      width: 100%;
+      height: 100px;
+      object-fit: contain;
+      background: #fff3eb;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      padding: 8px;
     }
 
-    .overlay.touchable {
-      pointer-events: auto;
-      cursor: pointer;
+    .name { font-weight: 700; margin-bottom: 4px; }
+    .meta { color: var(--subtle); font-size: 0.9rem; margin-bottom: 8px; }
+    .tag {
+      display: inline-block;
+      background: #ffe5d7;
+      color: #8f4223;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      padding: 4px 8px;
+      margin-right: 6px;
+      margin-top: 6px;
     }
 
-    /* D-pad controls for touch devices */
-    .dpad {
-      display: none;
-      margin: 20px auto 0;
-      width: 180px;
-      height: 180px;
+    .studio {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .dog-stage {
+      border: 1px dashed #f0ccb8;
+      border-radius: 14px;
+      background: #fffdfa;
+      min-height: 280px;
       position: relative;
-    }
-
-    .dpad-btn {
-      position: absolute;
-      width: 56px;
-      height: 56px;
-      background: rgba(0, 212, 170, 0.15);
-      border: 2px solid #00d4aa;
-      border-radius: 12px;
-      color: #00d4aa;
-      font-size: 1.5rem;
       display: flex;
-      justify-content: center;
       align-items: center;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      transition: background 0.1s;
+      justify-content: center;
+      overflow: hidden;
     }
 
-    .dpad-btn:active {
-      background: rgba(0, 212, 170, 0.4);
+    .dog-base {
+      width: 85%;
+      max-width: 300px;
+      object-fit: contain;
+      opacity: 0.95;
     }
 
-    .dpad-up    { top: 0; left: 50%; transform: translateX(-50%); }
-    .dpad-down  { bottom: 0; left: 50%; transform: translateX(-50%); }
-    .dpad-left  { left: 0; top: 50%; transform: translateY(-50%); }
-    .dpad-right { right: 0; top: 50%; transform: translateY(-50%); }
+    .wear-overlay {
+      position: absolute;
+      width: 36%;
+      max-width: 130px;
+      top: 48%;
+      left: 52%;
+      transform: translate(-50%, -50%);
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.12));
+    }
 
-    .pause-btn {
-      display: none;
-      margin: 12px auto 0;
-      padding: 10px 32px;
-      background: rgba(0, 212, 170, 0.15);
-      border: 2px solid #00d4aa;
+    .result {
+      margin-top: 10px;
       border-radius: 12px;
-      color: #00d4aa;
-      font-size: 1rem;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
+      border: 1px dashed #f0ccb8;
+      padding: 12px;
+      color: var(--subtle);
+      background: #fffdf9;
     }
 
-    .pause-btn:active {
-      background: rgba(0, 212, 170, 0.4);
-    }
+    .result strong { color: var(--ok); }
 
-    @media (pointer: coarse) {
-      .dpad, .pause-btn {
-        display: block;
-      }
-      .instructions {
-        display: none;
-      }
-      .touch-instructions {
-        display: block;
-      }
-    }
+    .muted { color: var(--subtle); font-size: 0.86rem; }
 
-    .touch-instructions {
-      display: none;
-      margin-top: 14px;
-      font-size: 0.9rem;
-      color: #888;
+    @media (max-width: 760px) {
+      .studio { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="game-container">
-    <h1>Snake Game</h1>
-    <div class="score-board">
-      <div>Score: <span id="score">0</span></div>
-      <div>High Score: <span id="high-score">0</span></div>
-    </div>
-    <div style="position: relative; display: inline-block;">
-      <canvas id="game-canvas" width="400" height="400"></canvas>
-      <div class="overlay" id="overlay">
-        <h2 id="overlay-title">Snake</h2>
-        <p id="overlay-message">Press any arrow key or WASD to start</p>
+  <main class="container">
+    <section class="card">
+      <h1>🐾 PawFit Dogwear Shop</h1>
+      <p class="subtitle">Now with online pictures, same-direction dogs, and a simple virtual try-on (swap clothes).</p>
+      <div class="search-row">
+        <input id="dogSearch" placeholder="Search dog species (e.g., Husky, Poodle)" />
       </div>
-    </div>
-    <div class="instructions">
-      Arrow keys or WASD to move &bull; P to pause
-    </div>
-    <div class="touch-instructions">
-      Swipe or use D-pad to move
-    </div>
-    <div class="dpad" id="dpad">
-      <button class="dpad-btn dpad-up" data-dir="up">&#9650;</button>
-      <button class="dpad-btn dpad-down" data-dir="down">&#9660;</button>
-      <button class="dpad-btn dpad-left" data-dir="left">&#9664;</button>
-      <button class="dpad-btn dpad-right" data-dir="right">&#9654;</button>
-    </div>
-    <button class="pause-btn" id="pause-btn">Pause</button>
-  </div>
+      <p class="muted" style="margin-top: 8px;">All dog images are right-facing icons so direction stays consistent.</p>
+    </section>
+
+    <section class="card">
+      <h2>1) Find Your Dog</h2>
+      <div class="grid" id="dogList"></div>
+    </section>
+
+    <section class="card">
+      <h2>2) Pick Dogwear + Try It Online</h2>
+      <div class="studio">
+        <div>
+          <div class="search-row" style="margin-bottom: 12px;">
+            <select id="selectedDog"><option value="">Select dog species</option></select>
+            <select id="selectedWear"><option value="">Select dogwear</option></select>
+            <button id="tryBtn">Try On</button>
+            <button id="clearBtn" type="button">Clear</button>
+          </div>
+
+          <div class="dog-stage">
+            <img id="dogBase" class="dog-base" alt="Selected dog" />
+            <img id="wearOverlay" class="wear-overlay" alt="Dogwear overlay" hidden />
+          </div>
+          <div id="resultBox" class="result">Select a dog and a dogwear item, then click <strong>Try On</strong>.</div>
+        </div>
+
+        <div>
+          <div class="grid" id="wearList"></div>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <script>
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
-    const overlay = document.getElementById('overlay');
-    const overlayTitle = document.getElementById('overlay-title');
-    const overlayMessage = document.getElementById('overlay-message');
-    const scoreEl = document.getElementById('score');
-    const highScoreEl = document.getElementById('high-score');
+    const baseDogIcon = 'https://api.iconify.design/mdi:dog-side.svg';
 
-    const GRID_SIZE = 20;
-    const TILE_COUNT = canvas.width / GRID_SIZE;
-    const TICK_RATE = 100; // ms per game tick
+    const dogs = [
+      { id: 'd1', species: 'Golden Retriever', size: 'L', color: 'b67c4b', style: ['friendly', 'outdoor'] },
+      { id: 'd2', species: 'French Bulldog', size: 'M', color: '7a6f66', style: ['urban', 'cozy'] },
+      { id: 'd3', species: 'Pomeranian', size: 'S', color: 'd49257', style: ['cute', 'warm'] },
+      { id: 'd4', species: 'Siberian Husky', size: 'L', color: '8294a6', style: ['sport', 'cold weather'] },
+      { id: 'd5', species: 'Toy Poodle', size: 'S', color: '8a5a3f', style: ['fashion', 'lightweight'] },
+      { id: 'd6', species: 'Beagle', size: 'M', color: '9a6a48', style: ['active', 'all-round'] }
+    ].map(dog => ({
+      ...dog,
+      image: `${baseDogIcon}?color=%23${dog.color}`
+    }));
 
-    let snake, direction, nextDirection, food, score, highScore, gameState, loopId;
+    const wears = [
+      { id: 'w1', name: 'Rain Jacket', fitSizes: ['M', 'L'], bestFor: 'rainy walks', image: 'https://api.iconify.design/mdi:coat-rack.svg?color=%232f77ff' },
+      { id: 'w2', name: 'Winter Sweater', fitSizes: ['S', 'M'], bestFor: 'cold evenings', image: 'https://api.iconify.design/mdi:tshirt-crew.svg?color=%23b5398f' },
+      { id: 'w3', name: 'Summer Tee', fitSizes: ['S', 'M', 'L'], bestFor: 'sunny days', image: 'https://api.iconify.design/mdi:tshirt-v.svg?color=%23ff7f50' },
+      { id: 'w4', name: 'Sport Vest', fitSizes: ['M', 'L'], bestFor: 'night exercise', image: 'https://api.iconify.design/mdi:safety-vest.svg?color=%23f59f00' },
+      { id: 'w5', name: 'Party Bandana', fitSizes: ['S', 'M'], bestFor: 'photos and events', image: 'https://api.iconify.design/mdi:triangle.svg?color=%23e03131' }
+    ];
 
-    // Game states: 'waiting', 'running', 'paused', 'gameover'
-    highScore = parseInt(localStorage.getItem('snakeHighScore') || '0', 10);
-    highScoreEl.textContent = highScore;
+    const dogList = document.getElementById('dogList');
+    const wearList = document.getElementById('wearList');
+    const dogSearch = document.getElementById('dogSearch');
+    const selectedDog = document.getElementById('selectedDog');
+    const selectedWear = document.getElementById('selectedWear');
+    const tryBtn = document.getElementById('tryBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const dogBase = document.getElementById('dogBase');
+    const wearOverlay = document.getElementById('wearOverlay');
+    const resultBox = document.getElementById('resultBox');
 
-    function init() {
-      snake = [
-        { x: Math.floor(TILE_COUNT / 2), y: Math.floor(TILE_COUNT / 2) }
-      ];
-      direction = { x: 0, y: 0 };
-      nextDirection = { x: 0, y: 0 };
-      score = 0;
-      scoreEl.textContent = score;
-      spawnFood();
-      gameState = 'waiting';
-      showOverlay('Snake', isTouchDevice() ? 'Swipe or tap a direction to start' : 'Press any arrow key or WASD to start');
-      draw();
+    function renderDogs(filter = '') {
+      const key = filter.trim().toLowerCase();
+      const filtered = dogs.filter(d => d.species.toLowerCase().includes(key));
+
+      dogList.innerHTML = filtered.length ? filtered.map(d => `
+        <article class="dog-item">
+          <img class="dog-pic" src="${d.image}" alt="${d.species} icon" loading="lazy" />
+          <div class="name">${d.species}</div>
+          <div class="meta">Size: ${d.size}</div>
+          ${d.style.map(s => `<span class="tag">${s}</span>`).join('')}
+        </article>
+      `).join('') : '<p>No species found. Try a different keyword.</p>';
     }
 
-    function isTouchDevice() {
-      return window.matchMedia('(pointer: coarse)').matches;
+    function renderWears() {
+      wearList.innerHTML = wears.map(w => `
+        <article class="wear-item">
+          <img class="wear-pic" src="${w.image}" alt="${w.name}" loading="lazy" />
+          <div class="name">${w.name}</div>
+          <div class="meta">Best for: ${w.bestFor}</div>
+          <div class="meta">Sizes: ${w.fitSizes.join(', ')}</div>
+          <button type="button" data-wear-id="${w.id}" class="quick-try">Try this wear</button>
+        </article>
+      `).join('');
     }
 
-    function spawnFood() {
-      while (true) {
-        food = {
-          x: Math.floor(Math.random() * TILE_COUNT),
-          y: Math.floor(Math.random() * TILE_COUNT)
-        };
-        // Make sure food doesn't spawn on the snake
-        if (!snake.some(seg => seg.x === food.x && seg.y === food.y)) break;
-      }
-    }
-
-    function showOverlay(title, message, tappable) {
-      overlayTitle.textContent = title;
-      overlayMessage.textContent = message;
-      overlay.style.display = 'flex';
-      overlay.style.width = canvas.offsetWidth + 'px';
-      overlay.style.height = canvas.offsetHeight + 'px';
-      if (tappable) {
-        overlay.classList.add('touchable');
-      } else {
-        overlay.classList.remove('touchable');
-      }
-    }
-
-    function hideOverlay() {
-      overlay.style.display = 'none';
-    }
-
-    function startGame() {
-      gameState = 'running';
-      hideOverlay();
-      loopId = setInterval(tick, TICK_RATE);
-    }
-
-    function tick() {
-      if (gameState !== 'running') return;
-
-      direction = { ...nextDirection };
-
-      const head = {
-        x: snake[0].x + direction.x,
-        y: snake[0].y + direction.y
-      };
-
-      // Wall collision
-      if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
-        return gameOver();
-      }
-
-      // Self collision
-      if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
-        return gameOver();
-      }
-
-      snake.unshift(head);
-
-      // Eat food
-      if (head.x === food.x && head.y === food.y) {
-        score++;
-        scoreEl.textContent = score;
-        if (score > highScore) {
-          highScore = score;
-          highScoreEl.textContent = highScore;
-          localStorage.setItem('snakeHighScore', highScore);
-        }
-        spawnFood();
-      } else {
-        snake.pop();
-      }
-
-      draw();
-    }
-
-    function gameOver() {
-      clearInterval(loopId);
-      gameState = 'gameover';
-      showOverlay('Game Over', `Score: ${score} — ${isTouchDevice() ? 'Tap to restart' : 'Press any key to restart'}`, true);
-    }
-
-    function draw() {
-      // Background
-      ctx.fillStyle = '#16213e';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Grid lines (subtle)
-      ctx.strokeStyle = '#1a2744';
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i <= TILE_COUNT; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i * GRID_SIZE, 0);
-        ctx.lineTo(i * GRID_SIZE, canvas.height);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, i * GRID_SIZE);
-        ctx.lineTo(canvas.width, i * GRID_SIZE);
-        ctx.stroke();
-      }
-
-      // Food
-      ctx.fillStyle = '#ff6b6b';
-      ctx.shadowColor = '#ff6b6b';
-      ctx.shadowBlur = 8;
-      roundRect(food.x * GRID_SIZE + 1, food.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2, 4);
-      ctx.shadowBlur = 0;
-
-      // Snake
-      snake.forEach((seg, i) => {
-        const ratio = 1 - (i / snake.length) * 0.5;
-        const g = Math.floor(212 * ratio);
-        const b = Math.floor(170 * ratio);
-        ctx.fillStyle = `rgb(0, ${g}, ${b})`;
-        if (i === 0) {
-          ctx.shadowColor = '#00d4aa';
-          ctx.shadowBlur = 6;
-        }
-        roundRect(seg.x * GRID_SIZE + 1, seg.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2, 4);
-        if (i === 0) ctx.shadowBlur = 0;
+    function populateSelects() {
+      dogs.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = `${d.species} (${d.size})`;
+        selectedDog.appendChild(opt);
+      });
+      wears.forEach(w => {
+        const opt = document.createElement('option');
+        opt.value = w.id;
+        opt.textContent = w.name;
+        selectedWear.appendChild(opt);
       });
     }
 
-    function roundRect(x, y, w, h, r) {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-      ctx.fill();
+    function tryOnOutfit() {
+      const dog = dogs.find(d => d.id === selectedDog.value);
+      const wear = wears.find(w => w.id === selectedWear.value);
+
+      if (!dog || !wear) {
+        resultBox.textContent = 'Please choose both dog species and dogwear first.';
+        return;
+      }
+
+      dogBase.src = dog.image;
+      dogBase.alt = dog.species;
+      wearOverlay.src = wear.image;
+      wearOverlay.alt = `${wear.name} on ${dog.species}`;
+      wearOverlay.hidden = false;
+
+      const fit = wear.fitSizes.includes(dog.size);
+      resultBox.innerHTML = fit
+        ? `<strong>Great match!</strong> ${wear.name} fits ${dog.species} (${dog.size}) and works for ${wear.bestFor}.`
+        : `<strong>Size warning.</strong> ${wear.name} is for ${wear.fitSizes.join(', ')}, but ${dog.species} is ${dog.size}.`;
     }
 
-    // Input handling
-    document.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      const directionKeys = ['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'];
-
-      if (gameState === 'gameover') {
-        init();
-        return;
-      }
-
-      if (key === 'p' && (gameState === 'running' || gameState === 'paused')) {
-        if (gameState === 'running') {
-          gameState = 'paused';
-          clearInterval(loopId);
-          showOverlay('Paused', 'Press P to resume');
-        } else {
-          gameState = 'running';
-          hideOverlay();
-          loopId = setInterval(tick, TICK_RATE);
-        }
-        return;
-      }
-
-      if (gameState === 'waiting' && directionKeys.includes(key)) {
-        setDirection(key);
-        startGame();
-        return;
-      }
-
-      if (gameState === 'running') {
-        setDirection(key);
-      }
-    });
-
-    function setDirection(key) {
-      switch (key) {
-        case 'arrowup':
-        case 'w':
-          if (direction.y !== 1) nextDirection = { x: 0, y: -1 };
-          break;
-        case 'arrowdown':
-        case 's':
-          if (direction.y !== -1) nextDirection = { x: 0, y: 1 };
-          break;
-        case 'arrowleft':
-        case 'a':
-          if (direction.x !== 1) nextDirection = { x: -1, y: 0 };
-          break;
-        case 'arrowright':
-        case 'd':
-          if (direction.x !== -1) nextDirection = { x: 1, y: 0 };
-          break;
-      }
+    function clearTryOn() {
+      wearOverlay.hidden = true;
+      wearOverlay.removeAttribute('src');
+      resultBox.innerHTML = 'Cleared. Pick another dogwear to test again.';
     }
 
-    // Touch / swipe handling
-    let touchStartX = 0;
-    let touchStartY = 0;
+    dogSearch.addEventListener('input', e => renderDogs(e.target.value));
+    tryBtn.addEventListener('click', tryOnOutfit);
+    clearBtn.addEventListener('click', clearTryOn);
 
-    canvas.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      const touch = e.changedTouches[0];
-      const dx = touch.clientX - touchStartX;
-      const dy = touch.clientY - touchStartY;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-
-      // Need a minimum swipe distance
-      if (Math.max(absDx, absDy) < 20) return;
-
-      let dir;
-      if (absDx > absDy) {
-        dir = dx > 0 ? 'right' : 'left';
-      } else {
-        dir = dy > 0 ? 'down' : 'up';
-      }
-
-      handleDirection(dir);
-    }, { passive: false });
-
-    // Overlay tap to restart
-    overlay.addEventListener('touchend', (e) => {
-      if (gameState === 'gameover') {
-        e.preventDefault();
-        e.stopPropagation();
-        init();
-      }
-    });
-    overlay.addEventListener('click', () => {
-      if (gameState === 'gameover') init();
+    wearList.addEventListener('click', event => {
+      const button = event.target.closest('.quick-try');
+      if (!button) return;
+      selectedWear.value = button.dataset.wearId;
+      tryOnOutfit();
     });
 
-    // D-pad buttons
-    document.querySelectorAll('.dpad-btn').forEach(btn => {
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        handleDirection(btn.dataset.dir);
-      }, { passive: false });
-      btn.addEventListener('click', () => {
-        handleDirection(btn.dataset.dir);
-      });
-    });
-
-    // Pause button
-    document.getElementById('pause-btn').addEventListener('click', () => {
-      if (gameState === 'running') {
-        gameState = 'paused';
-        clearInterval(loopId);
-        showOverlay('Paused', 'Tap pause to resume');
-      } else if (gameState === 'paused') {
-        gameState = 'running';
-        hideOverlay();
-        loopId = setInterval(tick, TICK_RATE);
+    selectedDog.addEventListener('change', () => {
+      const dog = dogs.find(d => d.id === selectedDog.value);
+      if (dog) {
+        dogBase.src = dog.image;
+        dogBase.alt = dog.species;
       }
     });
 
-    function handleDirection(dir) {
-      if (gameState === 'gameover') {
-        init();
-        return;
-      }
-
-      const keyMap = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright' };
-      const key = keyMap[dir];
-      if (!key) return;
-
-      if (gameState === 'waiting') {
-        setDirection(key);
-        startGame();
-        return;
-      }
-
-      if (gameState === 'running') {
-        setDirection(key);
-      }
-    }
-
-    // Responsive canvas sizing
-    function resizeCanvas() {
-      const maxSize = Math.min(window.innerWidth - 32, window.innerHeight - 300, 500);
-      const size = Math.max(280, Math.floor(maxSize / TILE_COUNT) * TILE_COUNT);
-      canvas.style.width = size + 'px';
-      canvas.style.height = size + 'px';
-      // Update overlay to match
-      if (overlay.style.display === 'flex') {
-        overlay.style.width = size + 'px';
-        overlay.style.height = size + 'px';
-      }
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    // Start
-    init();
+    renderDogs();
+    renderWears();
+    populateSelects();
+    dogBase.src = dogs[0].image;
+    dogBase.alt = dogs[0].species;
   </script>
 </body>
 </html>
