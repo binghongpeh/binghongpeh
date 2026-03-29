@@ -33,7 +33,7 @@ canvas.grabbing { cursor: grabbing; }
 </style>
 </head>
 <body>
-<div id="hint">左键拖拽小票 · 松开弹回 · 感受真实热敏纸物理</div>
+<div id="hint">触摸拖拽小票 · 松开弹回 · 感受真实热敏纸物理</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script>
@@ -45,10 +45,9 @@ canvas.grabbing { cursor: grabbing; }
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+// Shadows and ACESFilmic tone mapping cause shader compile failures on iOS WebGL —
+// blob shadow handles the depth cue instead.
+renderer.shadowMap.enabled = false;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -65,15 +64,6 @@ scene.add(ambLight);
 
 const sunLight = new THREE.DirectionalLight(0xffffff, 0.9);
 sunLight.position.set(3, 6, 6);
-sunLight.castShadow = true;
-sunLight.shadow.camera.near = 1;
-sunLight.shadow.camera.far = 25;
-sunLight.shadow.camera.left = -5;
-sunLight.shadow.camera.right = 5;
-sunLight.shadow.camera.top = 8;
-sunLight.shadow.camera.bottom = -8;
-sunLight.shadow.mapSize.set(1024, 1024);
-sunLight.shadow.bias = -0.001;
 scene.add(sunLight);
 
 const fillLight = new THREE.PointLight(0xffe8c0, 0.35, 20);
@@ -84,13 +74,6 @@ const rimLight = new THREE.DirectionalLight(0xccddff, 0.2);
 rimLight.position.set(-2, -2, -3);
 scene.add(rimLight);
 
-// Shadow receiver plane (floor)
-const shadowMat = new THREE.ShadowMaterial({ opacity: 0.35 });
-const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), shadowMat);
-shadowPlane.rotation.x = -Math.PI / 2;
-shadowPlane.position.y = -3.5;
-shadowPlane.receiveShadow = true;
-scene.add(shadowPlane);
 
 // Soft drop-shadow blob — follows the receipt, rendered behind it
 function buildShadowBlob() {
@@ -436,14 +419,13 @@ geo.setAttribute('normal',   new THREE.BufferAttribute(normArr, 3));
 geo.setAttribute('uv',       new THREE.BufferAttribute(uvArr, 2));
 geo.setIndex(idxArr);
 
-// Thermal paper material
-const mat = new THREE.MeshPhysicalMaterial({
+// Thermal paper material — MeshStandardMaterial for broad mobile WebGL compatibility
+const mat = new THREE.MeshStandardMaterial({
   map: receiptTex,
   side: THREE.DoubleSide,
   roughness: 0.88,
   metalness: 0.0,
   color: 0xfefef2,
-  envMapIntensity: 0.3,
 });
 
 const mesh = new THREE.Mesh(geo, mat);
