@@ -18,63 +18,42 @@
       --greenBg: #eafbee;
       --warnBg:  #fff8e1;
       --warnTx:  #7a5700;
-      --r:       16px;
-      --shadow:  0 4px 24px rgba(100,50,10,.09);
+      --r: 16px;
+      --shadow: 0 4px 24px rgba(100,50,10,.09);
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--text); min-height: 100vh;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: var(--bg); color: var(--text); min-height: 100vh; }
 
-    /* ── HEADER ── */
-    header {
-      background: linear-gradient(120deg, #1e0c06 0%, #5c2910 55%, #e8622a 100%);
-      padding: 22px 24px 28px;
-    }
-    .hdr { max-width: 1140px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+    /* HEADER */
+    header { background: linear-gradient(120deg,#1e0c06 0%,#5c2910 55%,#e8622a 100%); padding: 22px 24px 28px; }
+    .hdr { max-width: 1140px; margin: 0 auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
     .hdr-logo { font-size: 2.8rem; line-height: 1; }
     .hdr-copy h1 { font-size: 1.9rem; font-weight: 800; color: #fff; letter-spacing: -.4px; }
     .hdr-copy p  { color: rgba(255,255,255,.75); font-size: .93rem; margin-top: 3px; }
-    .hdr-badge {
-      margin-left: auto;
-      background: rgba(255,255,255,.15);
-      border: 1px solid rgba(255,255,255,.25);
-      color: #fff; border-radius: 20px;
-      padding: 6px 14px; font-size: .83rem; font-weight: 600;
-    }
     .ai-chip {
-      display: inline-flex; align-items: center; gap: 5px;
-      background: linear-gradient(90deg,#a855f7,#e8622a);
-      color: #fff; border-radius: 20px;
-      padding: 3px 10px; font-size: .76rem; font-weight: 700;
-      vertical-align: middle; margin-left: 6px;
+      display: inline-flex; align-items: center; gap: 4px;
+      background: linear-gradient(90deg,#a855f7,#e8622a); color: #fff;
+      border-radius: 20px; padding: 3px 10px; font-size: .76rem; font-weight: 700;
+      vertical-align: middle; margin-left: 8px;
     }
 
-    /* ── PAGE ── */
+    /* PAGE */
     .page { max-width: 1140px; margin: 0 auto; padding: 28px 18px 72px; display: grid; gap: 26px; }
 
-    /* ── SECTION ── */
-    .sec {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 22px; box-shadow: var(--shadow);
-    }
-    .sec-title {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 1.13rem; font-weight: 700; margin-bottom: 18px;
-    }
-    .step {
-      background: var(--brand); color: #fff; border-radius: 50%;
-      width: 28px; height: 28px; display: inline-flex;
-      align-items: center; justify-content: center;
-      font-size: .8rem; font-weight: 700; flex-shrink: 0;
-    }
-    .step.ai { background: linear-gradient(135deg,#a855f7,#e8622a); }
+    /* SECTION */
+    .sec { background: var(--card); border: 1px solid var(--border);
+           border-radius: var(--r); padding: 22px; box-shadow: var(--shadow); }
+    .sec-title { display: flex; align-items: center; gap: 10px;
+                 font-size: 1.13rem; font-weight: 700; margin-bottom: 18px; }
+    .step { background: var(--brand); color: #fff; border-radius: 50%;
+            width: 28px; height: 28px; display: inline-flex; align-items: center;
+            justify-content: center; font-size: .8rem; font-weight: 700; flex-shrink: 0; }
+    .step.ai { background: linear-gradient(135deg,#a855f7,#e8622a); font-size: 1rem; }
+    .tag-note { color: var(--sub); font-size: .82rem; font-weight: 400; margin-left: 4px; }
 
-    /* ── SEARCH + FILTERS ── */
-    .search-box {
-      position: relative; margin-bottom: 12px;
-    }
+    /* SEARCH + PILLS */
+    .search-box { position: relative; margin-bottom: 12px; }
     .search-box input {
       width: 100%; padding: 12px 14px 12px 42px;
       border: 1.5px solid var(--border); border-radius: 12px;
@@ -82,32 +61,25 @@
       transition: border-color .2s;
     }
     .search-box input:focus { border-color: var(--brand); }
-    .search-icon {
-      position: absolute; left: 14px; top: 50%;
-      transform: translateY(-50%); font-size: 1.1rem; pointer-events: none;
-    }
+    .search-icon { position: absolute; left: 14px; top: 50%;
+                   transform: translateY(-50%); font-size: 1.1rem; pointer-events: none; }
     .pills { display: flex; gap: 8px; flex-wrap: wrap; }
     .pill {
       padding: 6px 15px; border-radius: 20px; font-size: .82rem; font-weight: 600;
       cursor: pointer; border: 1.5px solid var(--border); background: #fff;
       color: var(--sub); transition: all .15s; user-select: none;
     }
-    .pill.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .pill.on  { background: var(--brand); color: #fff; border-color: var(--brand); }
     .pill:hover:not(.on) { border-color: var(--brand); color: var(--brand); }
 
-    /* ── DOG GRID ── */
-    .dog-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(165px,1fr));
-      gap: 14px; margin-top: 16px;
-    }
+    /* DOG GRID */
+    .dog-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(165px,1fr)); gap: 14px; margin-top: 16px; }
     .dog-card {
-      border: 2.5px solid var(--border); border-radius: 14px;
-      overflow: hidden; cursor: pointer;
-      transition: transform .15s, border-color .15s, box-shadow .15s;
+      border: 2.5px solid var(--border); border-radius: 14px; overflow: hidden;
+      cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s;
       background: #fff; position: relative;
     }
-    .dog-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(232,98,42,.16); }
+    .dog-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(232,98,42,.18); }
     .dog-card.sel {
       border-color: var(--brand);
       box-shadow: 0 0 0 3px rgba(232,98,42,.2), 0 8px 24px rgba(232,98,42,.15);
@@ -118,44 +90,36 @@
       width: 22px; height: 22px; display: flex; align-items: center;
       justify-content: center; font-size: .75rem; font-weight: 700;
     }
-    .dog-img-wrap {
+
+    /* image wrapper */
+    .img-wrap {
       width: 100%; aspect-ratio: 1; position: relative; overflow: hidden;
       background: linear-gradient(135deg,#fff5ee,#fde4cc);
+      display: flex; align-items: center; justify-content: center;
     }
-    .dog-img-wrap img {
-      width: 100%; height: 100%; object-fit: cover;
-      transition: opacity .3s;
-    }
-    .dog-img-wrap .skel {
+    .img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .img-wrap .fb { font-size: 4rem; display: none; }          /* emoji fallback */
+    .img-wrap .skel {
       position: absolute; inset: 0;
       background: linear-gradient(90deg,#f5ece4 25%,#eeddd2 50%,#f5ece4 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
+      background-size: 200%; animation: shimmer 1.4s infinite;
     }
     @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
     .dog-info { padding: 10px 12px 12px; }
     .dog-name { font-weight: 700; font-size: .9rem; }
     .dog-traits { font-size: .76rem; color: var(--sub); margin-top: 3px; }
-    .sz-chip {
-      display: inline-block; margin-top: 6px;
-      background: var(--brandL); color: var(--brandD);
-      border-radius: 6px; padding: 1px 8px; font-size: .73rem; font-weight: 700;
-    }
-    .no-res { padding: 40px; text-align: center; color: var(--sub); font-size: .95rem; }
+    .sz-chip { display: inline-block; margin-top: 6px; background: var(--brandL);
+               color: var(--brandD); border-radius: 6px; padding: 1px 8px; font-size: .73rem; font-weight: 700; }
 
-    /* ── WEAR GRID ── */
-    .wear-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(155px,1fr));
-      gap: 14px;
-    }
+    /* WEAR GRID */
+    .wear-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(155px,1fr)); gap: 14px; }
     .wear-card {
-      border: 2.5px solid var(--border); border-radius: 14px;
-      overflow: hidden; cursor: pointer;
-      transition: transform .15s, border-color .15s, box-shadow .15s;
+      border: 2.5px solid var(--border); border-radius: 14px; overflow: hidden;
+      cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s;
       background: #fff; position: relative;
     }
-    .wear-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(232,98,42,.16); }
+    .wear-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(232,98,42,.18); }
     .wear-card.sel {
       border-color: var(--brand);
       box-shadow: 0 0 0 3px rgba(232,98,42,.2), 0 8px 24px rgba(232,98,42,.15);
@@ -166,99 +130,68 @@
       width: 22px; height: 22px; display: flex; align-items: center;
       justify-content: center; font-size: .75rem; font-weight: 700;
     }
-    .wear-img-wrap {
-      width: 100%; aspect-ratio: 1; position: relative; overflow: hidden;
-    }
-    .wear-img-wrap img {
-      width: 100%; height: 100%; object-fit: cover; transition: opacity .3s;
-    }
-    .wear-img-wrap .skel {
-      position: absolute; inset: 0;
-      background: linear-gradient(90deg,#f5ece4 25%,#eeddd2 50%,#f5ece4 75%);
-      background-size: 200%; animation: shimmer 1.4s infinite;
-    }
     .wear-info { padding: 10px 12px 12px; }
     .wear-name  { font-weight: 700; font-size: .9rem; }
     .wear-for   { font-size: .76rem; color: var(--sub); margin-top: 3px; }
-    .wear-sizes { font-size: .74rem; color: var(--sub); margin-top: 2px; }
     .wear-price { font-weight: 700; color: var(--brand); font-size: .93rem; margin-top: 6px; }
 
-    /* ── TRY-ON ── */
-    .tryon-layout {
-      display: grid;
-      grid-template-columns: 1fr 340px;
-      gap: 20px; align-items: start;
-    }
-    @media(max-width:720px){ .tryon-layout{ grid-template-columns:1fr; } }
+    /* TRY-ON */
+    .tryon-layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+    @media(max-width:700px){ .tryon-layout{ grid-template-columns: 1fr; } }
 
     .tryon-canvas {
-      border: 2px dashed #e0cfc6; border-radius: 18px;
-      min-height: 340px; background: linear-gradient(160deg,#fff9f5,#fff1e8);
+      border: 2px dashed #e0cfc6; border-radius: 18px; min-height: 340px;
+      background: linear-gradient(160deg,#fff9f5,#fff1e8);
       display: flex; align-items: center; justify-content: center;
       position: relative; overflow: hidden;
     }
     .tryon-empty { text-align: center; color: var(--sub); padding: 50px 20px; }
-    .tryon-empty .big { font-size: 4rem; margin-bottom: 14px; }
+    .tryon-empty .big { font-size: 4.5rem; margin-bottom: 14px; }
     .tryon-empty p { font-size: .93rem; line-height: 1.6; }
 
-    .tryon-spinner {
-      display: none; flex-direction: column; align-items: center;
-      gap: 16px; color: var(--sub); font-size: .93rem;
-    }
-    .spinner {
-      width: 48px; height: 48px;
-      border: 4px solid var(--brandL);
-      border-top-color: var(--brand);
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .tryon-spinner { display: none; flex-direction: column; align-items: center; gap: 16px; color: var(--sub); font-size: .93rem; }
+    .spinner { width: 52px; height: 52px; border: 4px solid var(--brandL); border-top-color: var(--brand);
+               border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to{ transform: rotate(360deg); } }
 
-    #tryonImg {
-      display: none; width: 100%; border-radius: 16px;
-      object-fit: cover; max-height: 500px;
-    }
-    .tryon-prompt-label {
+    #tryonImg { display: none; width: 100%; border-radius: 16px; object-fit: cover; max-height: 500px; }
+    #tryonLabel {
       position: absolute; bottom: 0; left: 0; right: 0;
-      background: linear-gradient(transparent, rgba(0,0,0,.55));
-      color: rgba(255,255,255,.85); font-size: .76rem;
+      background: linear-gradient(transparent,rgba(0,0,0,.55));
+      color: rgba(255,255,255,.85); font-size: .75rem;
       padding: 28px 14px 12px; border-radius: 0 0 16px 16px;
-      display: none;
+      display: none; line-height: 1.4;
     }
+    #regenBtn {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(255,255,255,.92); border: 1px solid var(--border);
+      border-radius: 10px; padding: 6px 13px; font-size: .8rem;
+      cursor: pointer; font-weight: 600; transition: background .15s; display: none;
+    }
+    #regenBtn:hover { background: #fff; }
 
-    /* ── SIDEBAR ── */
+    /* SIDEBAR */
     .sidebar { display: flex; flex-direction: column; gap: 14px; }
-    .summary {
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: 14px; overflow: hidden;
-    }
-    .sum-row {
-      display: flex; align-items: center; gap: 12px; padding: 13px 16px;
-    }
+    .summary { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .sum-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
     .sum-row + .sum-row { border-top: 1px solid var(--border); }
     .sum-icon { font-size: 1.7rem; flex-shrink: 0; }
     .sum-label { font-size: .78rem; color: var(--sub); }
     .sum-val { font-weight: 600; font-size: .92rem; }
 
-    .fit-msg {
-      border-radius: 12px; padding: 12px 14px;
-      font-size: .88rem; line-height: 1.55; display: none;
-    }
+    .fit-msg { border-radius: 12px; padding: 12px 14px; font-size: .88rem; line-height: 1.55; display: none; }
     .fit-msg.good { background: var(--greenBg); color: var(--green); border: 1px solid #b2dfbb; display: block; }
-    .fit-msg.warn { background: var(--warnBg); color: var(--warnTx); border: 1px solid #ffe082; display: block; }
+    .fit-msg.warn { background: var(--warnBg);  color: var(--warnTx); border: 1px solid #ffe082; display: block; }
 
-    .price-row {
-      display: flex; align-items: baseline; justify-content: space-between;
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: 12px; padding: 12px 16px; display: none;
-    }
+    .price-row { display: none; align-items: baseline; justify-content: space-between;
+                 background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
     .price-label { font-size: .85rem; color: var(--sub); }
     .price-val   { font-size: 1.3rem; font-weight: 800; color: var(--brand); }
 
     .btn-cart {
       padding: 14px; background: var(--brand); color: #fff;
-      border: none; border-radius: 12px; font-size: .98rem;
-      font-weight: 700; cursor: pointer; transition: background .15s; width: 100%;
+      border: none; border-radius: 12px; font-size: .98rem; font-weight: 700;
+      cursor: pointer; transition: background .15s; width: 100%;
     }
     .btn-cart:hover:not(:disabled) { background: var(--brandD); }
     .btn-cart:disabled { background: #d5c8c0; cursor: not-allowed; color: #a0948e; }
@@ -269,127 +202,98 @@
     }
     .btn-clear:hover { border-color: var(--brand); color: var(--brand); }
 
-    /* ── REGENERATE ── */
-    .btn-regen {
-      position: absolute; top: 12px; right: 12px;
-      background: rgba(255,255,255,.9); border: 1px solid var(--border);
-      border-radius: 10px; padding: 6px 12px; font-size: .8rem;
-      cursor: pointer; display: none; font-weight: 600;
-      transition: background .15s;
-    }
-    .btn-regen:hover { background: #fff; }
-
-    /* ── TOAST ── */
+    /* TOAST */
     .toast {
       position: fixed; bottom: 24px; right: 24px;
-      background: #1a1614; color: #fff;
-      padding: 12px 20px; border-radius: 12px; font-size: .9rem;
-      box-shadow: 0 8px 28px rgba(0,0,0,.25);
-      transform: translateY(60px); opacity: 0;
-      transition: all .28s; z-index: 999;
+      background: #1a1614; color: #fff; padding: 12px 20px;
+      border-radius: 12px; font-size: .9rem; box-shadow: 0 8px 28px rgba(0,0,0,.25);
+      transform: translateY(60px); opacity: 0; transition: all .28s; z-index: 999;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
+
+    .no-res { padding: 40px; text-align: center; color: var(--sub); }
   </style>
 </head>
 <body>
 
-<!-- ── HEADER ── -->
 <header>
   <div class="hdr">
     <div class="hdr-logo">🐾</div>
     <div class="hdr-copy">
       <h1>PawFit<span class="ai-chip">✨ AI</span></h1>
-      <p>Pick a dog breed · choose an outfit · see the AI try-on instantly</p>
+      <p>Pick a breed · choose an outfit · AI generates the try-on</p>
     </div>
-    <div class="hdr-badge">🛒 Cart <span id="cartCount">0</span></div>
   </div>
 </header>
 
 <main class="page">
 
-  <!-- ── STEP 1: Dog ── -->
+  <!-- STEP 1 -->
   <section class="sec">
     <div class="sec-title">
-      <span class="step">1</span>
-      Choose Your Dog Breed
-      <span style="color:var(--sub);font-size:.85rem;font-weight:400;margin-left:4px">(AI photos)</span>
+      <span class="step">1</span> Choose Your Dog Breed
+      <span class="tag-note">(real photos)</span>
     </div>
-
     <div class="search-box">
       <span class="search-icon">🔍</span>
-      <input id="dogSearch" type="search" placeholder="Search breed — e.g. Husky, Corgi, Poodle…" autocomplete="off" />
+      <input id="dogSearch" type="search" placeholder="Search breed — Husky, Poodle, Corgi…" autocomplete="off" />
     </div>
-
     <div class="pills" id="sizePills">
       <button class="pill on" data-sz="all">All Sizes</button>
       <button class="pill" data-sz="S">Small</button>
       <button class="pill" data-sz="M">Medium</button>
       <button class="pill" data-sz="L">Large</button>
     </div>
-
     <div class="dog-grid" id="dogGrid"></div>
   </section>
 
-  <!-- ── STEP 2: Wear ── -->
+  <!-- STEP 2 -->
   <section class="sec">
     <div class="sec-title">
-      <span class="step">2</span>
-      Pick Dogwear
-      <span style="color:var(--sub);font-size:.85rem;font-weight:400;margin-left:4px">(AI product images)</span>
+      <span class="step">2</span> Pick Dogwear
+      <span class="tag-note">(AI product images)</span>
     </div>
     <div class="wear-grid" id="wearGrid"></div>
   </section>
 
-  <!-- ── STEP 3: AI Try-On ── -->
+  <!-- STEP 3 -->
   <section class="sec">
     <div class="sec-title">
-      <span class="step ai">✨</span>
-      AI Try-On Studio
+      <span class="step ai">✨</span> AI Try-On Studio
     </div>
-
     <div class="tryon-layout">
-      <!-- Canvas -->
       <div>
         <div class="tryon-canvas" id="tryonCanvas">
           <div class="tryon-empty" id="tryonEmpty">
             <div class="big">🤖</div>
-            <p>Select a dog breed &amp; dogwear above.<br>AI will generate the try-on for you!</p>
+            <p>Select a dog &amp; dogwear above.<br>AI will dress your dog instantly!</p>
           </div>
-
           <div class="tryon-spinner" id="tryonSpinner">
             <div class="spinner"></div>
-            <p>AI is dressing your dog…</p>
+            <p>AI is dressing your dog…<br><small style="opacity:.6">This can take ~10–20 seconds</small></p>
           </div>
-
-          <img id="tryonImg" alt="AI try-on preview" />
-          <div class="tryon-prompt-label" id="tryonLabel"></div>
-          <button class="btn-regen" id="regenBtn" title="Generate a new variation">🔄 Regenerate</button>
+          <img id="tryonImg" alt="AI try-on" />
+          <div id="tryonLabel"></div>
+          <button id="regenBtn">🔄 New variation</button>
         </div>
       </div>
 
-      <!-- Sidebar -->
       <div class="sidebar">
         <div class="summary">
           <div class="sum-row">
             <div class="sum-icon">🐶</div>
-            <div>
-              <div class="sum-label">Selected Breed</div>
-              <div class="sum-val" id="sumDog">Not selected</div>
-            </div>
+            <div><div class="sum-label">Selected Breed</div><div class="sum-val" id="sumDog">Not selected</div></div>
           </div>
           <div class="sum-row">
             <div class="sum-icon">👕</div>
-            <div>
-              <div class="sum-label">Selected Dogwear</div>
-              <div class="sum-val" id="sumWear">Not selected</div>
-            </div>
+            <div><div class="sum-label">Selected Dogwear</div><div class="sum-val" id="sumWear">Not selected</div></div>
           </div>
         </div>
 
         <div class="fit-msg" id="fitMsg"></div>
 
         <div class="price-row" id="priceRow">
-          <span class="price-label">Total</span>
+          <span class="price-label">Price</span>
           <span class="price-val" id="priceVal"></span>
         </div>
 
@@ -398,94 +302,104 @@
       </div>
     </div>
   </section>
-
 </main>
 
 <div class="toast" id="toast"></div>
 
 <script>
-/* ─────────────────────────────
-   POLLINATIONS.AI IMAGE HELPER
-───────────────────────────── */
-function aiImg(prompt, w = 400, h = 400, seed = 42) {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&nologo=true&seed=${seed}&model=flux`;
-}
-
-/* ─────────────────────────────
-   DOG DATA
-───────────────────────────── */
+/* =============================================
+   DOGS — photos from Dog CEO API
+   ============================================= */
 const dogs = [
-  { id:'d1',  species:'Golden Retriever', size:'L', traits:['friendly','outdoor'],
-    prompt:'Golden Retriever dog cute portrait, white studio background, professional pet photography, sharp focus' },
-  { id:'d2',  species:'French Bulldog',   size:'M', traits:['urban','playful'],
-    prompt:'French Bulldog dog adorable portrait, white studio background, professional pet photography' },
-  { id:'d3',  species:'Pomeranian',       size:'S', traits:['fluffy','cute'],
-    prompt:'Pomeranian dog fluffy cute portrait, white studio background, professional pet photography' },
-  { id:'d4',  species:'Siberian Husky',   size:'L', traits:['energetic','cold-weather'],
-    prompt:'Siberian Husky dog blue eyes portrait, white studio background, professional pet photography' },
-  { id:'d5',  species:'Toy Poodle',       size:'S', traits:['elegant','smart'],
-    prompt:'Toy Poodle dog curly fur portrait, white studio background, professional pet photography' },
-  { id:'d6',  species:'Beagle',           size:'M', traits:['curious','active'],
-    prompt:'Beagle dog cute portrait, white studio background, professional pet photography' },
-  { id:'d7',  species:'Shiba Inu',        size:'M', traits:['bold','independent'],
-    prompt:'Shiba Inu dog cute fox-like portrait, white studio background, professional pet photography' },
-  { id:'d8',  species:'Corgi',            size:'S', traits:['royal','happy'],
-    prompt:'Pembroke Welsh Corgi dog cute portrait, white studio background, professional pet photography' },
-  { id:'d9',  species:'Dalmatian',        size:'L', traits:['energetic','loyal'],
-    prompt:'Dalmatian dog spots cute portrait, white studio background, professional pet photography' },
-  { id:'d10', species:'Chihuahua',        size:'S', traits:['spunky','alert'],
-    prompt:'Chihuahua dog tiny cute portrait, white studio background, professional pet photography' },
-  { id:'d11', species:'Border Collie',    size:'M', traits:['clever','agile'],
-    prompt:'Border Collie dog intelligent portrait, white studio background, professional pet photography' },
-  { id:'d12', species:'Dachshund',        size:'S', traits:['brave','curious'],
-    prompt:'Dachshund dog long body portrait, white studio background, professional pet photography' },
+  { id:'d1',  species:'Golden Retriever', size:'L', traits:['friendly','outdoor'],   emoji:'🦮', slug:'retriever/golden'  },
+  { id:'d2',  species:'French Bulldog',   size:'M', traits:['urban','playful'],      emoji:'🐶', slug:'bulldog/french'    },
+  { id:'d3',  species:'Pomeranian',       size:'S', traits:['fluffy','cute'],        emoji:'🐕', slug:'pomeranian'        },
+  { id:'d4',  species:'Siberian Husky',   size:'L', traits:['energetic','outdoorsy'],emoji:'🐺', slug:'husky'             },
+  { id:'d5',  species:'Toy Poodle',       size:'S', traits:['elegant','smart'],      emoji:'🐩', slug:'poodle/toy'        },
+  { id:'d6',  species:'Beagle',           size:'M', traits:['curious','active'],     emoji:'🐕', slug:'beagle'            },
+  { id:'d7',  species:'Shiba Inu',        size:'M', traits:['bold','independent'],   emoji:'🦊', slug:'shiba'             },
+  { id:'d8',  species:'Corgi',            size:'S', traits:['royal','happy'],        emoji:'🐕', slug:'corgi/cardigan'    },
+  { id:'d9',  species:'Dalmatian',        size:'L', traits:['loyal','energetic'],    emoji:'🐶', slug:'dalmatian'         },
+  { id:'d10', species:'Chihuahua',        size:'S', traits:['spunky','alert'],       emoji:'🐾', slug:'chihuahua'         },
+  { id:'d11', species:'Border Collie',    size:'M', traits:['clever','agile'],       emoji:'🐕', slug:'collie/border'     },
+  { id:'d12', species:'Dachshund',        size:'S', traits:['brave','curious'],      emoji:'🌭', slug:'dachshund'         },
 ];
 
-// Assign stable AI image URLs (fixed seeds so they don't change on refresh)
-dogs.forEach((d, i) => {
-  d.imgUrl = aiImg(d.prompt, 400, 400, 100 + i * 43);
-});
-
-/* ─────────────────────────────
-   WEAR DATA
-───────────────────────────── */
+/* =============================================
+   WEARS — AI product images via Pollinations
+   ============================================= */
 const wears = [
-  { id:'w1', name:'Rain Jacket',      fitSizes:['M','L'], price:28.90, bg:'#dbeafe',
-    prompt:'dog rain jacket blue waterproof product photo, isolated on white background, studio lighting' },
-  { id:'w2', name:'Winter Sweater',   fitSizes:['S','M'], price:22.50, bg:'#ede9fe',
-    prompt:'cozy knit dog winter sweater purple, product photo, isolated white background, studio lighting' },
-  { id:'w3', name:'Summer Tee',       fitSizes:['S','M','L'], price:14.90, bg:'#fef9c3',
-    prompt:'dog summer t-shirt orange fun print, product photo, isolated white background, studio lighting' },
-  { id:'w4', name:'Sport Vest',       fitSizes:['M','L'], price:32.00, bg:'#fef3c7',
-    prompt:'dog reflective sport vest yellow safety, product photo, isolated white background, studio lighting' },
-  { id:'w5', name:'Party Bandana',    fitSizes:['S','M'], price:9.90,  bg:'#fce7f3',
-    prompt:'dog party bandana red polka dots, product photo, isolated white background, studio lighting' },
-  { id:'w6', name:'Cozy Hoodie',      fitSizes:['S','M','L'], price:36.00, bg:'#e0f2fe',
-    prompt:'dog cozy hoodie gray soft fabric, product photo, isolated white background, studio lighting' },
-  { id:'w7', name:'Denim Jacket',     fitSizes:['M','L'], price:44.00, bg:'#e0e7ff',
-    prompt:'dog denim jacket blue stylish, product photo, isolated white background, studio lighting' },
-  { id:'w8', name:'Christmas Sweater',fitSizes:['S','M','L'], price:19.90, bg:'#dcfce7',
-    prompt:'dog christmas sweater green red snowflake, product photo, isolated white background, studio lighting' },
+  { id:'w1', name:'Rain Jacket',       fitSizes:['M','L'],     price:28.90, bg:'#dbeafe', emoji:'🧥',
+    aiPrompt:'blue waterproof dog rain jacket, product photo, white background' },
+  { id:'w2', name:'Winter Sweater',    fitSizes:['S','M'],     price:22.50, bg:'#ede9fe', emoji:'🧶',
+    aiPrompt:'cozy purple knit dog sweater, product photo, white background' },
+  { id:'w3', name:'Summer Tee',        fitSizes:['S','M','L'], price:14.90, bg:'#fef9c3', emoji:'👕',
+    aiPrompt:'orange dog t-shirt, product photo, white background' },
+  { id:'w4', name:'Sport Vest',        fitSizes:['M','L'],     price:32.00, bg:'#fef3c7', emoji:'🦺',
+    aiPrompt:'yellow reflective dog sport vest, product photo, white background' },
+  { id:'w5', name:'Party Bandana',     fitSizes:['S','M'],     price:9.90,  bg:'#fce7f3', emoji:'🎀',
+    aiPrompt:'red polka dot dog bandana, product photo, white background' },
+  { id:'w6', name:'Cozy Hoodie',       fitSizes:['S','M','L'], price:36.00, bg:'#e0f2fe', emoji:'🧥',
+    aiPrompt:'gray soft dog hoodie, product photo, white background' },
+  { id:'w7', name:'Denim Jacket',      fitSizes:['M','L'],     price:44.00, bg:'#e0e7ff', emoji:'👔',
+    aiPrompt:'blue denim dog jacket, product photo, white background' },
+  { id:'w8', name:'Christmas Sweater', fitSizes:['S','M','L'], price:19.90, bg:'#dcfce7', emoji:'🎄',
+    aiPrompt:'green christmas dog sweater with snowflakes, product photo, white background' },
 ];
 
+/* Pre-build Pollinations URLs for wear items */
 wears.forEach((w, i) => {
-  w.imgUrl = aiImg(w.prompt, 360, 360, 200 + i * 37);
+  w.imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(w.aiPrompt)}?width=360&height=360&nologo=true&seed=${200 + i * 37}`;
 });
 
-/* ─────────────────────────────
+/* =============================================
    STATE
-───────────────────────────── */
+   ============================================= */
 let selDog  = null;
 let selWear = null;
-let szFilter  = 'all';
-let searchQ   = '';
-let tryonSeed = 1;
+let szFilter = 'all';
+let searchQ  = '';
+let tryonSeed = 42;
 let cartCount = 0;
+const dogPhotoCache = {};   // id → URL
 
-/* ─────────────────────────────
-   RENDER: DOGS
-───────────────────────────── */
-function getFilteredDogs() {
+/* =============================================
+   FETCH DOG PHOTOS  (Dog CEO API)
+   ============================================= */
+async function loadDogPhoto(dog) {
+  if (dogPhotoCache[dog.id]) return;
+  try {
+    const r = await fetch(`https://dog.ceo/api/breed/${dog.slug}/images/random`);
+    const j = await r.json();
+    if (j.status === 'success') dogPhotoCache[dog.id] = j.message;
+  } catch (_) {}
+  // Update the card if it's already rendered
+  updateDogCardPhoto(dog);
+}
+
+function updateDogCardPhoto(dog) {
+  const wrap = document.querySelector(`[data-dog="${dog.id}"] .img-wrap`);
+  if (!wrap) return;
+  const skel = wrap.querySelector('.skel');
+  const img  = wrap.querySelector('img');
+  const fb   = wrap.querySelector('.fb');
+  if (dogPhotoCache[dog.id]) {
+    img.src = dogPhotoCache[dog.id];
+    img.onload  = () => { skel && (skel.style.display = 'none'); };
+    img.onerror = () => { img.style.display = 'none'; fb.style.display = 'block'; skel && (skel.style.display = 'none'); };
+    img.style.display = 'block';
+  } else {
+    // No URL fetched — show emoji fallback
+    img.style.display = 'none';
+    fb.style.display  = 'block';
+    skel && (skel.style.display = 'none');
+  }
+}
+
+/* =============================================
+   RENDER DOGS
+   ============================================= */
+function filteredDogs() {
   const q = searchQ.toLowerCase();
   return dogs.filter(d =>
     (szFilter === 'all' || d.size === szFilter) &&
@@ -495,18 +409,17 @@ function getFilteredDogs() {
 
 function renderDogs() {
   const grid = document.getElementById('dogGrid');
-  const list = getFilteredDogs();
+  const list = filteredDogs();
   if (!list.length) {
     grid.innerHTML = '<div class="no-res">🐾 No breeds found — try a different search.</div>';
     return;
   }
   grid.innerHTML = list.map(d => `
-    <div class="dog-card ${selDog?.id === d.id ? 'sel' : ''}" data-id="${d.id}" tabindex="0" role="button">
-      <div class="dog-img-wrap">
-        <div class="skel" id="sk-${d.id}"></div>
-        <img src="${d.imgUrl}" alt="${d.species}"
-             onload="hideSkel('${d.id}')"
-             onerror="this.style.display='none';hideSkel('${d.id}')" />
+    <div class="dog-card ${selDog?.id === d.id ? 'sel' : ''}" data-dog="${d.id}" tabindex="0" role="button">
+      <div class="img-wrap">
+        <div class="skel"></div>
+        <img src="" alt="${d.species}" style="display:none" />
+        <div class="fb">${d.emoji}</div>
       </div>
       <div class="dog-info">
         <div class="dog-name">${d.species}</div>
@@ -517,68 +430,62 @@ function renderDogs() {
   `).join('');
 
   grid.querySelectorAll('.dog-card').forEach(el => {
-    el.addEventListener('click', () => pickDog(el.dataset.id));
-    el.addEventListener('keydown', e => { if (e.key === 'Enter') pickDog(el.dataset.id); });
+    el.addEventListener('click', () => pickDog(el.dataset.dog));
+    el.addEventListener('keydown', e => e.key === 'Enter' && pickDog(el.dataset.dog));
+  });
+
+  // Load photos (from cache or fetch)
+  list.forEach(d => {
+    if (dogPhotoCache[d.id]) {
+      updateDogCardPhoto(d);
+    } else {
+      loadDogPhoto(d);
+    }
   });
 }
 
-/* ─────────────────────────────
-   RENDER: WEARS
-───────────────────────────── */
+/* =============================================
+   RENDER WEARS
+   ============================================= */
 function renderWears() {
   const grid = document.getElementById('wearGrid');
   grid.innerHTML = wears.map(w => `
-    <div class="wear-card ${selWear?.id === w.id ? 'sel' : ''}" data-id="${w.id}" tabindex="0" role="button">
-      <div class="wear-img-wrap" style="background:${w.bg}">
-        <div class="skel" id="sk-${w.id}"></div>
+    <div class="wear-card ${selWear?.id === w.id ? 'sel' : ''}" data-wear="${w.id}" tabindex="0" role="button">
+      <div class="img-wrap" style="background:${w.bg}">
+        <div class="skel"></div>
         <img src="${w.imgUrl}" alt="${w.name}"
-             onload="hideSkel('${w.id}')"
-             onerror="this.style.display='none';hideSkel('${w.id}')" />
+             onload="this.previousElementSibling.style.display='none'"
+             onerror="this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='block'" />
+        <div class="fb" style="display:none">${w.emoji}</div>
       </div>
       <div class="wear-info">
         <div class="wear-name">${w.name}</div>
-        <div class="wear-sizes">Sizes: ${w.fitSizes.join(', ')}</div>
+        <div class="wear-for">Sizes: ${w.fitSizes.join(', ')}</div>
         <div class="wear-price">$${w.price.toFixed(2)}</div>
       </div>
     </div>
   `).join('');
 
   grid.querySelectorAll('.wear-card').forEach(el => {
-    el.addEventListener('click', () => pickWear(el.dataset.id));
-    el.addEventListener('keydown', e => { if (e.key === 'Enter') pickWear(el.dataset.id); });
+    el.addEventListener('click', () => pickWear(el.dataset.wear));
+    el.addEventListener('keydown', e => e.key === 'Enter' && pickWear(el.dataset.wear));
   });
 }
 
-function hideSkel(id) {
-  const sk = document.getElementById('sk-' + id);
-  if (sk) sk.style.display = 'none';
+/* =============================================
+   SELECT
+   ============================================= */
+function pickDog(id)  { selDog  = dogs.find(d => d.id === id)  || null; renderDogs();  updateStudio(); }
+function pickWear(id) { selWear = wears.find(w => w.id === id) || null; renderWears(); updateStudio(); }
+
+/* =============================================
+   TRY-ON
+   ============================================= */
+function tryOnPrompt(dog, wear) {
+  return `${dog.species} dog wearing ${wear.name}, cute, professional pet photo, white background, full body`;
 }
 
-/* ─────────────────────────────
-   SELECT HANDLERS
-───────────────────────────── */
-function pickDog(id) {
-  selDog = dogs.find(d => d.id === id) || null;
-  renderDogs();
-  updateStudio();
-}
-
-function pickWear(id) {
-  selWear = wears.find(w => w.id === id) || null;
-  renderWears();
-  updateStudio();
-}
-
-/* ─────────────────────────────
-   STUDIO
-───────────────────────────── */
-function buildTryOnPrompt(dog, wear) {
-  return `${dog.species} dog wearing ${wear.name}, adorable professional dog photo, white clean background, full body shot, sharp focus, high quality`;
-}
-
-function generateTryOn(seed) {
-  if (!selDog || !selWear) return;
-
+function runTryOn(seed) {
   const empty   = document.getElementById('tryonEmpty');
   const spinner = document.getElementById('tryonSpinner');
   const img     = document.getElementById('tryonImg');
@@ -591,59 +498,65 @@ function generateTryOn(seed) {
   label.style.display   = 'none';
   regen.style.display   = 'none';
 
-  const prompt = buildTryOnPrompt(selDog, selWear);
-  const url    = aiImg(prompt, 600, 600, seed);
+  const prompt = tryOnPrompt(selDog, selWear);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=600&height=600&nologo=true&seed=${seed}`;
 
   const tmp = new Image();
   tmp.onload = () => {
-    img.src           = url;
-    img.style.display = 'block';
+    img.src = url;
+    img.style.display   = 'block';
     spinner.style.display = 'none';
-    label.textContent = `"${prompt}"`;
-    label.style.display   = 'block';
-    regen.style.display   = 'block';
+    label.textContent   = `Prompt: "${prompt}"`;
+    label.style.display = 'block';
+    regen.style.display = 'block';
   };
   tmp.onerror = () => {
     spinner.style.display = 'none';
     empty.style.display   = 'flex';
-    empty.innerHTML = '<div class="big">😞</div><p>Could not generate image.<br>Check your internet connection.</p>';
+    empty.innerHTML = `<div class="big">😞</div>
+      <p>Could not generate AI image.<br>
+      <small>Please check your internet<br>connection and try again.</small></p>`;
   };
   tmp.src = url;
 }
 
+/* =============================================
+   STUDIO UPDATE
+   ============================================= */
 function updateStudio() {
   const sumDog  = document.getElementById('sumDog');
   const sumWear = document.getElementById('sumWear');
   const fitMsg  = document.getElementById('fitMsg');
-  const priceRow= document.getElementById('priceRow');
-  const priceVal= document.getElementById('priceVal');
+  const priceRow = document.getElementById('priceRow');
+  const priceVal = document.getElementById('priceVal');
   const addBtn  = document.getElementById('addBtn');
 
-  sumDog.textContent  = selDog  ? `${selDog.species} (Size ${selDog.size})`         : 'Not selected';
-  sumWear.textContent = selWear ? `${selWear.name} — $${selWear.price.toFixed(2)}`  : 'Not selected';
+  sumDog.textContent  = selDog  ? `${selDog.species} (Size ${selDog.size})`           : 'Not selected';
+  sumWear.textContent = selWear ? `${selWear.name} — $${selWear.price.toFixed(2)}`    : 'Not selected';
 
-  // Fit check
   fitMsg.className = 'fit-msg';
+
   if (selDog && selWear) {
     const fits = selWear.fitSizes.includes(selDog.size);
     fitMsg.className = fits ? 'fit-msg good' : 'fit-msg warn';
     fitMsg.innerHTML = fits
-      ? `✅ <strong>Great fit!</strong> ${selWear.name} is available in size ${selDog.size} — perfect for ${selDog.species}.`
-      : `⚠️ <strong>Size note:</strong> ${selWear.name} comes in ${selWear.fitSizes.join('/')} but ${selDog.species} is size ${selDog.size}.`;
+      ? `✅ <strong>Great fit!</strong> ${selWear.name} comes in size ${selDog.size} — perfect for ${selDog.species}.`
+      : `⚠️ <strong>Size note:</strong> ${selWear.name} is for sizes ${selWear.fitSizes.join('/')} but ${selDog.species} is size ${selDog.size}.`;
 
     priceRow.style.display = 'flex';
     priceVal.textContent   = `$${selWear.price.toFixed(2)}`;
     addBtn.disabled        = false;
 
-    // Auto-generate try-on
-    generateTryOn(tryonSeed);
+    runTryOn(tryonSeed);
   } else {
     priceRow.style.display = 'none';
     addBtn.disabled        = true;
 
     if (!selDog && !selWear) {
-      document.getElementById('tryonEmpty').style.display   = 'flex';
-      document.getElementById('tryonEmpty').innerHTML       = '<div class="big">🤖</div><p>Select a dog breed &amp; dogwear above.<br>AI will generate the try-on for you!</p>';
+      const empty = document.getElementById('tryonEmpty');
+      empty.style.display  = 'flex';
+      empty.innerHTML = `<div class="big">🤖</div>
+        <p>Select a dog breed &amp; dogwear above.<br>AI will generate the try-on!</p>`;
       document.getElementById('tryonSpinner').style.display = 'none';
       document.getElementById('tryonImg').style.display     = 'none';
       document.getElementById('tryonLabel').style.display   = 'none';
@@ -652,12 +565,11 @@ function updateStudio() {
   }
 }
 
-/* ─────────────────────────────
+/* =============================================
    EVENTS
-───────────────────────────── */
+   ============================================= */
 document.getElementById('dogSearch').addEventListener('input', e => {
-  searchQ = e.target.value;
-  renderDogs();
+  searchQ = e.target.value; renderDogs();
 });
 
 document.getElementById('sizePills').addEventListener('click', e => {
@@ -677,28 +589,23 @@ document.getElementById('clearBtn').addEventListener('click', () => {
 document.getElementById('addBtn').addEventListener('click', () => {
   if (!selDog || !selWear) return;
   cartCount++;
-  document.getElementById('cartCount').textContent = cartCount;
-  showToast(`🛒 Added ${selWear.name} for ${selDog.species}!`);
+  showToast(`🛒 Added ${selWear.name} for your ${selDog.species}!`);
 });
 
 document.getElementById('regenBtn').addEventListener('click', () => {
   tryonSeed = Math.floor(Math.random() * 9000) + 1000;
-  generateTryOn(tryonSeed);
+  runTryOn(tryonSeed);
 });
 
-/* ─────────────────────────────
-   TOAST
-───────────────────────────── */
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-/* ─────────────────────────────
+/* =============================================
    INIT
-───────────────────────────── */
+   ============================================= */
 renderDogs();
 renderWears();
 updateStudio();
