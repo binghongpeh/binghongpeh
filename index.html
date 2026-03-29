@@ -6,151 +6,168 @@
   <title>PawFit Dogwear Shop</title>
   <style>
     :root {
-      --bg: #fff7f1;
+      --bg: #fff8f2;
       --card: #ffffff;
-      --text: #2f2a27;
-      --subtle: #6a5f58;
+      --text: #2b2521;
+      --subtle: #6f645d;
       --brand: #ff7f50;
-      --brand-dark: #e4683b;
-      --border: #f1d7c9;
-      --good: #2f9e44;
+      --brand-dark: #e46638;
+      --border: #f2d9ca;
+      --ok: #2f9e44;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 28px 14px;
+      padding: 24px 14px;
     }
 
     .container {
-      max-width: 980px;
+      max-width: 1050px;
       margin: 0 auto;
       display: grid;
-      gap: 18px;
+      gap: 16px;
     }
 
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-      padding: 20px;
+      padding: 18px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
     }
 
-    h1 {
-      font-size: 1.9rem;
-      margin-bottom: 6px;
-    }
-
-    .subtitle {
-      color: var(--subtle);
-      margin-bottom: 8px;
-    }
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    h2 { margin-bottom: 10px; }
+    .subtitle { color: var(--subtle); margin-bottom: 12px; }
 
     .search-row {
       display: flex;
-      flex-wrap: wrap;
       gap: 10px;
-      margin-top: 12px;
+      flex-wrap: wrap;
     }
 
-    input,
-    select,
-    button {
+    input, button, select {
       border-radius: 10px;
-      border: 1px solid #e9ddd5;
+      border: 1px solid #eadbd2;
       padding: 10px 12px;
-      font-size: 0.96rem;
+      font-size: 0.95rem;
     }
 
-    input,
-    select {
-      flex: 1;
-      min-width: 180px;
-      background: #fff;
-    }
+    input, select { flex: 1; min-width: 180px; }
 
     button {
       background: var(--brand);
-      color: white;
+      color: #fff;
       border: none;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s ease;
     }
 
-    button:hover {
-      background: var(--brand-dark);
-    }
+    button:hover { background: var(--brand-dark); }
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
     }
 
-    .dog-item,
-    .wear-item {
+    .dog-item, .wear-item {
       border: 1px solid var(--border);
       border-radius: 12px;
+      background: #fffdfb;
       padding: 12px;
-      background: #fffdfa;
     }
 
-    .dog-name,
-    .wear-name {
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .meta {
-      color: var(--subtle);
-      font-size: 0.92rem;
+    .dog-pic {
+      width: 100%;
+      height: 120px;
+      object-fit: contain;
+      background: #fff3eb;
+      border-radius: 10px;
       margin-bottom: 8px;
+      padding: 8px;
     }
 
+    .wear-pic {
+      width: 100%;
+      height: 100px;
+      object-fit: contain;
+      background: #fff3eb;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      padding: 8px;
+    }
+
+    .name { font-weight: 700; margin-bottom: 4px; }
+    .meta { color: var(--subtle); font-size: 0.9rem; margin-bottom: 8px; }
     .tag {
       display: inline-block;
-      font-size: 0.8rem;
-      padding: 4px 8px;
+      background: #ffe5d7;
+      color: #8f4223;
       border-radius: 20px;
-      background: #ffe4d6;
-      color: #8a4328;
+      font-size: 0.78rem;
+      padding: 4px 8px;
       margin-right: 6px;
-      margin-top: 4px;
+      margin-top: 6px;
     }
 
-    .dogwear-controls {
+    .studio {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
-      gap: 10px;
-      margin-bottom: 12px;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
     }
 
-    .result-box {
-      border: 1px dashed #f0cdb8;
+    .dog-stage {
+      border: 1px dashed #f0ccb8;
+      border-radius: 14px;
+      background: #fffdfa;
+      min-height: 280px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .dog-base {
+      width: 85%;
+      max-width: 300px;
+      object-fit: contain;
+      opacity: 0.95;
+    }
+
+    .wear-overlay {
+      position: absolute;
+      width: 36%;
+      max-width: 130px;
+      top: 48%;
+      left: 52%;
+      transform: translate(-50%, -50%);
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.12));
+    }
+
+    .result {
+      margin-top: 10px;
       border-radius: 12px;
-      padding: 14px;
-      background: #fffdf9;
+      border: 1px dashed #f0ccb8;
+      padding: 12px;
       color: var(--subtle);
+      background: #fffdf9;
     }
 
-    .result-box strong {
-      color: var(--good);
-    }
+    .result strong { color: var(--ok); }
 
-    @media (max-width: 700px) {
-      .dogwear-controls {
-        grid-template-columns: 1fr;
-      }
+    .muted { color: var(--subtle); font-size: 0.86rem; }
+
+    @media (max-width: 760px) {
+      .studio { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -158,50 +175,64 @@
   <main class="container">
     <section class="card">
       <h1>🐾 PawFit Dogwear Shop</h1>
-      <p class="subtitle">Simple starter: search dogs, choose one, then pick dogwear that fits.</p>
+      <p class="subtitle">Now with online pictures, same-direction dogs, and a simple virtual try-on (swap clothes).</p>
       <div class="search-row">
-        <input id="dogSearch" type="text" placeholder="Search dog species (e.g., Husky, Poodle)" />
+        <input id="dogSearch" placeholder="Search dog species (e.g., Husky, Poodle)" />
       </div>
+      <p class="muted" style="margin-top: 8px;">All dog images are right-facing icons so direction stays consistent.</p>
     </section>
 
     <section class="card">
-      <h2>Choose Your Dog</h2>
+      <h2>1) Find Your Dog</h2>
       <div class="grid" id="dogList"></div>
     </section>
 
     <section class="card">
-      <h2>Pick Dogwear</h2>
-      <div class="dogwear-controls">
-        <select id="selectedDog">
-          <option value="">Select your dog</option>
-        </select>
-        <select id="selectedWear">
-          <option value="">Select dogwear</option>
-        </select>
-        <button id="matchBtn">Match Outfit</button>
+      <h2>2) Pick Dogwear + Try It Online</h2>
+      <div class="studio">
+        <div>
+          <div class="search-row" style="margin-bottom: 12px;">
+            <select id="selectedDog"><option value="">Select dog species</option></select>
+            <select id="selectedWear"><option value="">Select dogwear</option></select>
+            <button id="tryBtn">Try On</button>
+            <button id="clearBtn" type="button">Clear</button>
+          </div>
+
+          <div class="dog-stage">
+            <img id="dogBase" class="dog-base" alt="Selected dog" />
+            <img id="wearOverlay" class="wear-overlay" alt="Dogwear overlay" hidden />
+          </div>
+          <div id="resultBox" class="result">Select a dog and a dogwear item, then click <strong>Try On</strong>.</div>
+        </div>
+
+        <div>
+          <div class="grid" id="wearList"></div>
+        </div>
       </div>
-      <div class="grid" id="wearList"></div>
-      <div class="result-box" id="resultBox">Choose a dog and a dogwear item to get a simple recommendation.</div>
     </section>
   </main>
 
   <script>
+    const baseDogIcon = 'https://api.iconify.design/mdi:dog-side.svg';
+
     const dogs = [
-      { id: 'd1', species: 'Golden Retriever', size: 'L', style: ['outdoor', 'classic'] },
-      { id: 'd2', species: 'French Bulldog', size: 'M', style: ['urban', 'cozy'] },
-      { id: 'd3', species: 'Pomeranian', size: 'S', style: ['cute', 'warm'] },
-      { id: 'd4', species: 'Siberian Husky', size: 'L', style: ['sport', 'cold weather'] },
-      { id: 'd5', species: 'Toy Poodle', size: 'S', style: ['fashion', 'lightweight'] },
-      { id: 'd6', species: 'Beagle', size: 'M', style: ['active', 'all-round'] }
-    ];
+      { id: 'd1', species: 'Golden Retriever', size: 'L', color: 'b67c4b', style: ['friendly', 'outdoor'] },
+      { id: 'd2', species: 'French Bulldog', size: 'M', color: '7a6f66', style: ['urban', 'cozy'] },
+      { id: 'd3', species: 'Pomeranian', size: 'S', color: 'd49257', style: ['cute', 'warm'] },
+      { id: 'd4', species: 'Siberian Husky', size: 'L', color: '8294a6', style: ['sport', 'cold weather'] },
+      { id: 'd5', species: 'Toy Poodle', size: 'S', color: '8a5a3f', style: ['fashion', 'lightweight'] },
+      { id: 'd6', species: 'Beagle', size: 'M', color: '9a6a48', style: ['active', 'all-round'] }
+    ].map(dog => ({
+      ...dog,
+      image: `${baseDogIcon}?color=%23${dog.color}`
+    }));
 
     const wears = [
-      { id: 'w1', name: 'Waterproof Rain Jacket', fitSizes: ['M', 'L'], bestFor: 'rainy walks' },
-      { id: 'w2', name: 'Knitted Winter Sweater', fitSizes: ['S', 'M'], bestFor: 'cold evenings' },
-      { id: 'w3', name: 'Breathable Summer Tee', fitSizes: ['S', 'M', 'L'], bestFor: 'sunny days' },
-      { id: 'w4', name: 'Reflective Sport Vest', fitSizes: ['M', 'L'], bestFor: 'night exercise' },
-      { id: 'w5', name: 'Bow Tie Party Collar', fitSizes: ['S', 'M'], bestFor: 'events and photos' },
-      { id: 'w6', name: 'Puffer Hoodie', fitSizes: ['L'], bestFor: 'winter trips' }
+      { id: 'w1', name: 'Rain Jacket', fitSizes: ['M', 'L'], bestFor: 'rainy walks', image: 'https://api.iconify.design/mdi:coat-rack.svg?color=%232f77ff' },
+      { id: 'w2', name: 'Winter Sweater', fitSizes: ['S', 'M'], bestFor: 'cold evenings', image: 'https://api.iconify.design/mdi:tshirt-crew.svg?color=%23b5398f' },
+      { id: 'w3', name: 'Summer Tee', fitSizes: ['S', 'M', 'L'], bestFor: 'sunny days', image: 'https://api.iconify.design/mdi:tshirt-v.svg?color=%23ff7f50' },
+      { id: 'w4', name: 'Sport Vest', fitSizes: ['M', 'L'], bestFor: 'night exercise', image: 'https://api.iconify.design/mdi:safety-vest.svg?color=%23f59f00' },
+      { id: 'w5', name: 'Party Bandana', fitSizes: ['S', 'M'], bestFor: 'photos and events', image: 'https://api.iconify.design/mdi:triangle.svg?color=%23e03131' }
     ];
 
     const dogList = document.getElementById('dogList');
@@ -209,76 +240,104 @@
     const dogSearch = document.getElementById('dogSearch');
     const selectedDog = document.getElementById('selectedDog');
     const selectedWear = document.getElementById('selectedWear');
-    const matchBtn = document.getElementById('matchBtn');
+    const tryBtn = document.getElementById('tryBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const dogBase = document.getElementById('dogBase');
+    const wearOverlay = document.getElementById('wearOverlay');
     const resultBox = document.getElementById('resultBox');
 
-    function renderDogs(filterText = '') {
-      const term = filterText.trim().toLowerCase();
-      const filtered = dogs.filter(d => d.species.toLowerCase().includes(term));
+    function renderDogs(filter = '') {
+      const key = filter.trim().toLowerCase();
+      const filtered = dogs.filter(d => d.species.toLowerCase().includes(key));
 
-      dogList.innerHTML = filtered.length
-        ? filtered.map(d => `
-            <article class="dog-item">
-              <div class="dog-name">${d.species}</div>
-              <div class="meta">Size: ${d.size}</div>
-              ${d.style.map(tag => `<span class="tag">${tag}</span>`).join('')}
-            </article>
-          `).join('')
-        : '<p>No dog species found. Try another keyword.</p>';
+      dogList.innerHTML = filtered.length ? filtered.map(d => `
+        <article class="dog-item">
+          <img class="dog-pic" src="${d.image}" alt="${d.species} icon" loading="lazy" />
+          <div class="name">${d.species}</div>
+          <div class="meta">Size: ${d.size}</div>
+          ${d.style.map(s => `<span class="tag">${s}</span>`).join('')}
+        </article>
+      `).join('') : '<p>No species found. Try a different keyword.</p>';
     }
 
     function renderWears() {
       wearList.innerHTML = wears.map(w => `
         <article class="wear-item">
-          <div class="wear-name">${w.name}</div>
+          <img class="wear-pic" src="${w.image}" alt="${w.name}" loading="lazy" />
+          <div class="name">${w.name}</div>
           <div class="meta">Best for: ${w.bestFor}</div>
           <div class="meta">Sizes: ${w.fitSizes.join(', ')}</div>
+          <button type="button" data-wear-id="${w.id}" class="quick-try">Try this wear</button>
         </article>
       `).join('');
     }
 
     function populateSelects() {
       dogs.forEach(d => {
-        const option = document.createElement('option');
-        option.value = d.id;
-        option.textContent = `${d.species} (${d.size})`;
-        selectedDog.appendChild(option);
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = `${d.species} (${d.size})`;
+        selectedDog.appendChild(opt);
       });
-
       wears.forEach(w => {
-        const option = document.createElement('option');
-        option.value = w.id;
-        option.textContent = w.name;
-        selectedWear.appendChild(option);
+        const opt = document.createElement('option');
+        opt.value = w.id;
+        opt.textContent = w.name;
+        selectedWear.appendChild(opt);
       });
     }
 
-    function getRecommendation() {
+    function tryOnOutfit() {
       const dog = dogs.find(d => d.id === selectedDog.value);
       const wear = wears.find(w => w.id === selectedWear.value);
 
       if (!dog || !wear) {
-        resultBox.innerHTML = 'Please select both a dog and a dogwear item first.';
+        resultBox.textContent = 'Please choose both dog species and dogwear first.';
         return;
       }
 
-      const match = wear.fitSizes.includes(dog.size);
-      if (match) {
-        resultBox.innerHTML = `<strong>Great match!</strong> ${wear.name} fits ${dog.species} (size ${dog.size}) and is ideal for ${wear.bestFor}.`;
-      } else {
-        resultBox.innerHTML = `<strong>Size mismatch.</strong> ${wear.name} is for sizes ${wear.fitSizes.join(', ')}, but ${dog.species} is size ${dog.size}. Try another dogwear.`;
-      }
+      dogBase.src = dog.image;
+      dogBase.alt = dog.species;
+      wearOverlay.src = wear.image;
+      wearOverlay.alt = `${wear.name} on ${dog.species}`;
+      wearOverlay.hidden = false;
+
+      const fit = wear.fitSizes.includes(dog.size);
+      resultBox.innerHTML = fit
+        ? `<strong>Great match!</strong> ${wear.name} fits ${dog.species} (${dog.size}) and works for ${wear.bestFor}.`
+        : `<strong>Size warning.</strong> ${wear.name} is for ${wear.fitSizes.join(', ')}, but ${dog.species} is ${dog.size}.`;
     }
 
-    dogSearch.addEventListener('input', (event) => {
-      renderDogs(event.target.value);
+    function clearTryOn() {
+      wearOverlay.hidden = true;
+      wearOverlay.removeAttribute('src');
+      resultBox.innerHTML = 'Cleared. Pick another dogwear to test again.';
+    }
+
+    dogSearch.addEventListener('input', e => renderDogs(e.target.value));
+    tryBtn.addEventListener('click', tryOnOutfit);
+    clearBtn.addEventListener('click', clearTryOn);
+
+    wearList.addEventListener('click', event => {
+      const button = event.target.closest('.quick-try');
+      if (!button) return;
+      selectedWear.value = button.dataset.wearId;
+      tryOnOutfit();
     });
 
-    matchBtn.addEventListener('click', getRecommendation);
+    selectedDog.addEventListener('change', () => {
+      const dog = dogs.find(d => d.id === selectedDog.value);
+      if (dog) {
+        dogBase.src = dog.image;
+        dogBase.alt = dog.species;
+      }
+    });
 
     renderDogs();
     renderWears();
     populateSelects();
+    dogBase.src = dogs[0].image;
+    dogBase.alt = dogs[0].species;
   </script>
 </body>
 </html>
