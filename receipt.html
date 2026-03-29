@@ -56,7 +56,7 @@ scene.background = new THREE.Color(0xebebeb);
 scene.fog = new THREE.Fog(0xebebeb, 18, 28);
 
 const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 0.5, 8.5);
+camera.position.set(0, 0.3, 7.5);
 camera.lookAt(0, 0, 0);
 
 // Lighting
@@ -84,13 +84,37 @@ const rimLight = new THREE.DirectionalLight(0xccddff, 0.2);
 rimLight.position.set(-2, -2, -3);
 scene.add(rimLight);
 
-// Shadow receiver plane
-const shadowMat = new THREE.ShadowMaterial({ opacity: 0.18 });
+// Shadow receiver plane (floor)
+const shadowMat = new THREE.ShadowMaterial({ opacity: 0.35 });
 const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), shadowMat);
 shadowPlane.rotation.x = -Math.PI / 2;
-shadowPlane.position.y = -4.5;
+shadowPlane.position.y = -3.5;
 shadowPlane.receiveShadow = true;
 scene.add(shadowPlane);
+
+// Soft drop-shadow blob — follows the receipt, rendered behind it
+function buildShadowBlob() {
+  const sc = document.createElement('canvas');
+  sc.width = 256; sc.height = 512;
+  const sctx = sc.getContext('2d');
+  const gx = sctx.createRadialGradient(128, 256, 10, 128, 256, 220);
+  gx.addColorStop(0,   'rgba(0,0,0,0.55)');
+  gx.addColorStop(0.45,'rgba(0,0,0,0.28)');
+  gx.addColorStop(0.75,'rgba(0,0,0,0.08)');
+  gx.addColorStop(1,   'rgba(0,0,0,0)');
+  sctx.fillStyle = gx;
+  sctx.fillRect(0, 0, 256, 512);
+  return new THREE.CanvasTexture(sc);
+}
+const blobTex = buildShadowBlob();
+const blobMat = new THREE.MeshBasicMaterial({
+  map: blobTex,
+  transparent: true,
+  opacity: 1.0,
+  depthWrite: false,
+});
+const blobMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), blobMat);
+scene.add(blobMesh);
 
 // ─────────────────────────────────────────────────────────────
 // RECEIPT TEXTURE — Canvas 2D
@@ -255,8 +279,8 @@ function buildReceiptTexture() {
 // ─────────────────────────────────────────────────────────────
 const COLS = 14;
 const ROWS = 38;
-const REC_W = 2.2;
-const REC_H = 6.6;
+const REC_W = 1.5;
+const REC_H = 4.8;
 const REST_X = REC_W / (COLS - 1);
 const REST_Y = REC_H / (ROWS - 1);
 const GRAVITY = new THREE.Vector3(0, -0.18, 0);
@@ -444,14 +468,31 @@ scene.add(edgeMesh);
 // ─────────────────────────────────────────────────────────────
 // GEOMETRY UPDATE
 // ─────────────────────────────────────────────────────────────
+// Compute receipt bounding box center for shadow placement
+const _bbMin = new THREE.Vector3(), _bbMax = new THREE.Vector3();
 function syncGeometry() {
+  _bbMin.set(Infinity, Infinity, Infinity);
+  _bbMax.set(-Infinity, -Infinity, -Infinity);
   for (let i = 0; i < particles.length; i++) {
-    posArr[i * 3]     = particles[i].pos.x;
-    posArr[i * 3 + 1] = particles[i].pos.y;
-    posArr[i * 3 + 2] = particles[i].pos.z;
+    const p = particles[i];
+    posArr[i * 3]     = p.pos.x;
+    posArr[i * 3 + 1] = p.pos.y;
+    posArr[i * 3 + 2] = p.pos.z;
+    _bbMin.min(p.pos); _bbMax.max(p.pos);
   }
   geo.attributes.position.needsUpdate = true;
   geo.computeVertexNormals();
+
+  // Update blob shadow — sit behind receipt, scaled to match receipt size
+  const cx = (_bbMin.x + _bbMax.x) * 0.5;
+  const cy = (_bbMin.y + _bbMax.y) * 0.5;
+  const minZ = _bbMin.z;
+  const scaleX = (_bbMax.x - _bbMin.x) * 1.35;
+  const scaleY = (_bbMax.y - _bbMin.y) * 1.2;
+  blobMesh.position.set(cx + 0.08, cy - 0.12, minZ - 0.04);
+  blobMesh.scale.set(scaleX, scaleY, 1);
+  // Tilt blob to face camera
+  blobMesh.lookAt(camera.position);
 }
 
 // ─────────────────────────────────────────────────────────────
