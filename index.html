@@ -3,341 +3,898 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PawFit Dogwear Shop</title>
+  <title>PawFit — Dog Clothing Try-On</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #fff8f2;
+      --bg: #f5efe6;
       --card: #ffffff;
       --text: #2b2521;
-      --subtle: #6f645d;
-      --brand: #ff7f50;
-      --brand-dark: #e46638;
-      --border: #f2d9ca;
-      --ok: #2f9e44;
+      --subtle: #8a7f77;
+      --brand: #ff7043;
+      --brand-light: #fff0eb;
+      --brand-dark: #e45a2f;
+      --accent: #6c5ce7;
+      --success: #00b894;
+      --shadow: 0 20px 60px rgba(0,0,0,0.08);
+      --shadow-hover: 0 30px 80px rgba(0,0,0,0.12);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 24px 14px;
+      overflow-x: hidden;
     }
 
-    .container {
-      max-width: 1050px;
+    /* ==================== HEADER ==================== */
+    .header {
+      text-align: center;
+      padding: 40px 20px 20px;
+    }
+
+    .header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.6rem;
+      background: linear-gradient(135deg, #ff7043, #e45a2f, #6c5ce7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -1px;
+    }
+
+    .header p {
+      color: var(--subtle);
+      font-size: 1rem;
+      margin-top: 8px;
+      font-weight: 500;
+    }
+
+    /* ==================== MAIN LAYOUT ==================== */
+    .app {
+      max-width: 1200px;
       margin: 0 auto;
+      padding: 20px;
       display: grid;
-      gap: 16px;
+      grid-template-columns: 1fr 420px 1fr;
+      gap: 30px;
+      align-items: start;
     }
 
-    .card {
+    @media (max-width: 1000px) {
+      .app {
+        grid-template-columns: 1fr;
+        max-width: 500px;
+      }
+    }
+
+    /* ==================== DOG SELECTOR PANEL ==================== */
+    .panel {
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
     }
 
-    h1 { font-size: 2rem; margin-bottom: 8px; }
-    h2 { margin-bottom: 10px; }
-    .subtitle { color: var(--subtle); margin-bottom: 12px; }
+    .panel-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--subtle);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
 
-    .search-row {
+    .breed-list {
       display: flex;
+      flex-direction: column;
       gap: 10px;
-      flex-wrap: wrap;
     }
 
-    input, button, select {
-      border-radius: 10px;
-      border: 1px solid #eadbd2;
-      padding: 10px 12px;
-      font-size: 0.95rem;
-    }
-
-    input, select { flex: 1; min-width: 180px; }
-
-    button {
-      background: var(--brand);
-      color: #fff;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    button:hover { background: var(--brand-dark); }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-    }
-
-    .dog-item, .wear-item {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: #fffdfb;
-      padding: 12px;
-    }
-
-    .dog-pic {
-      width: 100%;
-      height: 120px;
-      object-fit: contain;
-      background: #fff3eb;
-      border-radius: 10px;
-      margin-bottom: 8px;
-      padding: 8px;
-    }
-
-    .wear-pic {
-      width: 100%;
-      height: 100px;
-      object-fit: contain;
-      background: #fff3eb;
-      border-radius: 10px;
-      margin-bottom: 8px;
-      padding: 8px;
-    }
-
-    .name { font-weight: 700; margin-bottom: 4px; }
-    .meta { color: var(--subtle); font-size: 0.9rem; margin-bottom: 8px; }
-    .tag {
-      display: inline-block;
-      background: #ffe5d7;
-      color: #8f4223;
-      border-radius: 20px;
-      font-size: 0.78rem;
-      padding: 4px 8px;
-      margin-right: 6px;
-      margin-top: 6px;
-    }
-
-    .studio {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+    .breed-card {
+      display: flex;
+      align-items: center;
       gap: 14px;
+      padding: 12px 16px;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 2px solid transparent;
+      background: #faf7f2;
     }
 
-    .dog-stage {
-      border: 1px dashed #f0ccb8;
+    .breed-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    .breed-card.active {
+      border-color: var(--brand);
+      background: var(--brand-light);
+      box-shadow: 0 8px 24px rgba(255, 112, 67, 0.15);
+    }
+
+    .breed-avatar {
+      width: 52px;
+      height: 52px;
       border-radius: 14px;
-      background: #fffdfa;
-      min-height: 280px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      flex-shrink: 0;
+    }
+
+    .breed-info { flex: 1; }
+    .breed-name { font-weight: 700; font-size: 0.95rem; }
+    .breed-meta { color: var(--subtle); font-size: 0.82rem; margin-top: 2px; }
+
+    .breed-size {
+      background: var(--brand);
+      color: white;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    /* ==================== CENTER STAGE ==================== */
+    .stage-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .stage {
+      width: 420px;
+      height: 420px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #fff7f2, #f0e4d8);
+      box-shadow:
+        inset 0 -10px 40px rgba(0,0,0,0.04),
+        0 20px 60px rgba(0,0,0,0.08),
+        0 0 0 8px rgba(255,255,255,0.6);
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+    }
+
+    .stage.drag-over {
+      box-shadow:
+        inset 0 -10px 40px rgba(0,0,0,0.04),
+        0 20px 60px rgba(255, 112, 67, 0.2),
+        0 0 0 8px rgba(255, 112, 67, 0.3);
+      transform: scale(1.03);
+    }
+
+    .stage.drop-success {
+      animation: dropPulse 0.6s ease;
+    }
+
+    @keyframes dropPulse {
+      0% { transform: scale(1.03); }
+      50% { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+
+    .dog-display {
+      position: relative;
+      width: 260px;
+      height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s ease;
+    }
+
+    .dog-svg {
+      width: 100%;
+      height: 100%;
+      transition: all 0.4s ease;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.1));
+    }
+
+    .clothing-overlay {
+      position: absolute;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));
+      pointer-events: none;
+    }
+
+    .clothing-overlay.appear {
+      animation: clothingAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes clothingAppear {
+      0% { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+
+    /* Price + Size row */
+    .price-tag {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text);
+      transition: all 0.3s ease;
+    }
+
+    .size-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .size-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 2px solid #e0d5cc;
+      background: white;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: var(--subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .size-btn:hover { border-color: var(--brand); color: var(--brand); }
+
+    .size-btn.active {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: white;
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(255, 112, 67, 0.3);
+    }
+
+    .fit-badge {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      animation: badgePop 0.4s ease;
+    }
+
+    .fit-badge.good { background: #d4f8e8; color: #00825a; }
+    .fit-badge.warn { background: #fff3cd; color: #856404; }
+
+    @keyframes badgePop {
+      0% { opacity: 0; transform: scale(0.5); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* ==================== CLOTHING PANEL ==================== */
+    .clothing-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .clothing-card {
+      background: #faf7f2;
+      border-radius: 18px;
+      padding: 16px;
+      cursor: grab;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 2px solid transparent;
+      text-align: center;
+      user-select: none;
+      position: relative;
       overflow: hidden;
     }
 
-    .dog-base {
-      width: 85%;
-      max-width: 300px;
-      object-fit: contain;
-      opacity: 0.95;
+    .clothing-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.1);
+      border-color: #e0d5cc;
     }
 
-    .wear-overlay {
-      position: absolute;
-      width: 36%;
-      max-width: 130px;
-      top: 48%;
-      left: 52%;
-      transform: translate(-50%, -50%);
-      object-fit: contain;
+    .clothing-card:active {
+      cursor: grabbing;
+      transform: scale(0.95);
+    }
+
+    .clothing-card.active {
+      border-color: var(--brand);
+      background: var(--brand-light);
+    }
+
+    .clothing-card.dragging {
+      opacity: 0.4;
+      transform: scale(0.9);
+    }
+
+    .clothing-emoji {
+      font-size: 2.5rem;
+      margin-bottom: 8px;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+
+    .clothing-card:hover .clothing-emoji {
+      transform: scale(1.15) rotate(-5deg);
+    }
+
+    .clothing-name { font-weight: 700; font-size: 0.88rem; }
+    .clothing-price { color: var(--brand); font-weight: 700; font-size: 0.9rem; margin-top: 4px; }
+    .clothing-best { color: var(--subtle); font-size: 0.75rem; margin-top: 4px; }
+
+    /* Drag ghost */
+    .drag-ghost {
+      position: fixed;
       pointer-events: none;
-      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.12));
+      z-index: 9999;
+      font-size: 4rem;
+      transition: none;
+      filter: drop-shadow(0 12px 24px rgba(0,0,0,0.2));
+      animation: ghostAppear 0.2s ease;
     }
 
-    .result {
-      margin-top: 10px;
-      border-radius: 12px;
-      border: 1px dashed #f0ccb8;
-      padding: 12px;
+    @keyframes ghostAppear {
+      0% { transform: scale(0.5); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* ==================== BOTTOM SECTION ==================== */
+    .bottom-bar {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    .hint-text {
+      text-align: center;
       color: var(--subtle);
-      background: #fffdf9;
+      font-size: 0.9rem;
+      padding: 16px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
     }
 
-    .result strong { color: var(--ok); }
+    .hint-text .icon { font-size: 1.4rem; margin-right: 6px; vertical-align: middle; }
 
-    .muted { color: var(--subtle); font-size: 0.86rem; }
-
-    @media (max-width: 760px) {
-      .studio { grid-template-columns: 1fr; }
+    /* ==================== RESULT NOTIFICATION ==================== */
+    .notification {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: white;
+      border-radius: 20px;
+      padding: 16px 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      z-index: 1000;
+      transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
+
+    .notification.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .notification .notif-icon { font-size: 1.5rem; }
+
+    /* ==================== REMOVE BUTTON ==================== */
+    .remove-btn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.9);
+      border: 2px solid #e0d5cc;
+      cursor: pointer;
+      font-size: 1rem;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+
+    .remove-btn:hover {
+      background: #ff6b6b;
+      color: white;
+      border-color: #ff6b6b;
+      transform: scale(1.1);
+    }
+
+    .stage:hover .remove-btn.visible {
+      display: flex;
+    }
+
+    /* ==================== ANIMATIONS ==================== */
+    .fade-in {
+      animation: fadeIn 0.5s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .float { animation: float 3s ease-in-out infinite; }
+
+    /* ==================== SPARKLE EFFECT ==================== */
+    .sparkle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--brand);
+      pointer-events: none;
+      animation: sparkle 0.8s ease forwards;
+    }
+
+    @keyframes sparkle {
+      0% { transform: scale(0); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.8; }
+      100% { transform: scale(0); opacity: 0; }
+    }
+
+    /* ==================== RESPONSIVE ==================== */
+    @media (max-width: 1000px) {
+      .stage {
+        width: 320px;
+        height: 320px;
+      }
+      .dog-display {
+        width: 200px;
+        height: 200px;
+      }
+      .header h1 { font-size: 2rem; }
+    }
+
+    @media (max-width: 500px) {
+      .stage {
+        width: 280px;
+        height: 280px;
+      }
+      .clothing-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+    }
+
+    /* ==================== SCROLL REVEAL ==================== */
+    .panel { opacity: 0; animation: fadeIn 0.6s ease forwards; }
+    .panel:nth-child(1) { animation-delay: 0.1s; }
+    .panel:nth-child(2) { animation-delay: 0.2s; }
+    .panel:nth-child(3) { animation-delay: 0.3s; }
   </style>
 </head>
 <body>
-  <main class="container">
-    <section class="card">
-      <h1>🐾 PawFit Dogwear Shop</h1>
-      <p class="subtitle">Now with online pictures, same-direction dogs, and a simple virtual try-on (swap clothes).</p>
-      <div class="search-row">
-        <input id="dogSearch" placeholder="Search dog species (e.g., Husky, Poodle)" />
-      </div>
-      <p class="muted" style="margin-top: 8px;">All dog images are right-facing icons so direction stays consistent.</p>
-    </section>
 
-    <section class="card">
-      <h2>1) Find Your Dog</h2>
-      <div class="grid" id="dogList"></div>
-    </section>
+  <div class="header">
+    <h1>PawFit Try-On</h1>
+    <p>Drag clothing onto your pup to see the look instantly</p>
+  </div>
 
-    <section class="card">
-      <h2>2) Pick Dogwear + Try It Online</h2>
-      <div class="studio">
-        <div>
-          <div class="search-row" style="margin-bottom: 12px;">
-            <select id="selectedDog"><option value="">Select dog species</option></select>
-            <select id="selectedWear"><option value="">Select dogwear</option></select>
-            <button id="tryBtn">Try On</button>
-            <button id="clearBtn" type="button">Clear</button>
-          </div>
+  <div class="app">
+    <!-- LEFT: Dog breeds -->
+    <div class="panel" id="breedPanel">
+      <div class="panel-title">Choose Your Pup</div>
+      <div class="breed-list" id="breedList"></div>
+    </div>
 
-          <div class="dog-stage">
-            <img id="dogBase" class="dog-base" alt="Selected dog" />
-            <img id="wearOverlay" class="wear-overlay" alt="Dogwear overlay" hidden />
-          </div>
-          <div id="resultBox" class="result">Select a dog and a dogwear item, then click <strong>Try On</strong>.</div>
+    <!-- CENTER: Stage -->
+    <div class="stage-wrapper">
+      <div class="stage" id="stage">
+        <div class="dog-display float" id="dogDisplay">
+          <!-- Dog SVG injected here -->
         </div>
-
-        <div>
-          <div class="grid" id="wearList"></div>
-        </div>
+        <button class="remove-btn" id="removeBtn" title="Remove clothing">✕</button>
       </div>
-    </section>
-  </main>
+      <div class="price-tag" id="priceTag">$0</div>
+      <div class="size-row" id="sizeRow">
+        <div class="size-btn" data-size="S">S</div>
+        <div class="size-btn active" data-size="M">M</div>
+        <div class="size-btn" data-size="L">L</div>
+        <div class="size-btn" data-size="XL">XL</div>
+      </div>
+      <div id="fitBadge"></div>
+    </div>
+
+    <!-- RIGHT: Clothing items -->
+    <div class="panel" id="clothingPanel">
+      <div class="panel-title">Drag Clothing to Try On</div>
+      <div class="clothing-grid" id="clothingGrid"></div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <div class="hint-text">
+      <span class="icon">👆</span> Tap a dog breed, then drag any clothing item onto the stage
+    </div>
+  </div>
+
+  <!-- Notification toast -->
+  <div class="notification" id="notification">
+    <span class="notif-icon" id="notifIcon"></span>
+    <span id="notifText"></span>
+  </div>
 
   <script>
-    const baseDogIcon = 'https://api.iconify.design/mdi:dog-side.svg';
-
-    const dogs = [
-      { id: 'd1', species: 'Golden Retriever', size: 'L', color: 'b67c4b', style: ['friendly', 'outdoor'] },
-      { id: 'd2', species: 'French Bulldog', size: 'M', color: '7a6f66', style: ['urban', 'cozy'] },
-      { id: 'd3', species: 'Pomeranian', size: 'S', color: 'd49257', style: ['cute', 'warm'] },
-      { id: 'd4', species: 'Siberian Husky', size: 'L', color: '8294a6', style: ['sport', 'cold weather'] },
-      { id: 'd5', species: 'Toy Poodle', size: 'S', color: '8a5a3f', style: ['fashion', 'lightweight'] },
-      { id: 'd6', species: 'Beagle', size: 'M', color: '9a6a48', style: ['active', 'all-round'] }
-    ].map(dog => ({
-      ...dog,
-      image: `${baseDogIcon}?color=%23${dog.color}`
-    }));
-
-    const wears = [
-      { id: 'w1', name: 'Rain Jacket', fitSizes: ['M', 'L'], bestFor: 'rainy walks', image: 'https://api.iconify.design/mdi:coat-rack.svg?color=%232f77ff' },
-      { id: 'w2', name: 'Winter Sweater', fitSizes: ['S', 'M'], bestFor: 'cold evenings', image: 'https://api.iconify.design/mdi:tshirt-crew.svg?color=%23b5398f' },
-      { id: 'w3', name: 'Summer Tee', fitSizes: ['S', 'M', 'L'], bestFor: 'sunny days', image: 'https://api.iconify.design/mdi:tshirt-v.svg?color=%23ff7f50' },
-      { id: 'w4', name: 'Sport Vest', fitSizes: ['M', 'L'], bestFor: 'night exercise', image: 'https://api.iconify.design/mdi:safety-vest.svg?color=%23f59f00' },
-      { id: 'w5', name: 'Party Bandana', fitSizes: ['S', 'M'], bestFor: 'photos and events', image: 'https://api.iconify.design/mdi:triangle.svg?color=%23e03131' }
+    // ===================== DATA =====================
+    const breeds = [
+      { id: 'golden', name: 'Golden Retriever', size: 'L', emoji: '🐕', color: '#b67c4b', traits: ['Friendly', 'Outdoor'] },
+      { id: 'bulldog', name: 'French Bulldog', size: 'M', emoji: '🐶', color: '#7a6f66', traits: ['Urban', 'Cozy'] },
+      { id: 'pom', name: 'Pomeranian', size: 'S', emoji: '🐾', color: '#d49257', traits: ['Cute', 'Fluffy'] },
+      { id: 'husky', name: 'Siberian Husky', size: 'L', emoji: '🐺', color: '#8294a6', traits: ['Athletic', 'Cold-ready'] },
+      { id: 'poodle', name: 'Toy Poodle', size: 'S', emoji: '🦴', color: '#8a5a3f', traits: ['Elegant', 'Fashion'] },
+      { id: 'corgi', name: 'Corgi', size: 'M', emoji: '🐕‍🦺', color: '#c98942', traits: ['Playful', 'Adorable'] },
     ];
 
-    const dogList = document.getElementById('dogList');
-    const wearList = document.getElementById('wearList');
-    const dogSearch = document.getElementById('dogSearch');
-    const selectedDog = document.getElementById('selectedDog');
-    const selectedWear = document.getElementById('selectedWear');
-    const tryBtn = document.getElementById('tryBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const dogBase = document.getElementById('dogBase');
-    const wearOverlay = document.getElementById('wearOverlay');
-    const resultBox = document.getElementById('resultBox');
+    const clothing = [
+      { id: 'raincoat', name: 'Rain Jacket', emoji: '🧥', price: 29, sizes: ['M', 'L', 'XL'], best: 'Rainy walks', bodyPos: { top: '28%', left: '30%', width: '55%' } },
+      { id: 'sweater', name: 'Winter Sweater', emoji: '🧶', price: 24, sizes: ['S', 'M', 'L'], best: 'Cold evenings', bodyPos: { top: '25%', left: '28%', width: '58%' } },
+      { id: 'tee', name: 'Summer Tee', emoji: '👕', price: 16, sizes: ['S', 'M', 'L', 'XL'], best: 'Sunny days', bodyPos: { top: '26%', left: '30%', width: '54%' } },
+      { id: 'vest', name: 'Sport Vest', emoji: '🦺', price: 34, sizes: ['M', 'L', 'XL'], best: 'Night exercise', bodyPos: { top: '22%', left: '26%', width: '60%' } },
+      { id: 'bandana', name: 'Party Bandana', emoji: '🎀', price: 12, sizes: ['S', 'M'], best: 'Photos & events', bodyPos: { top: '14%', left: '52%', width: '28%' } },
+      { id: 'hoodie', name: 'Cozy Hoodie', emoji: '🧥', price: 32, sizes: ['S', 'M', 'L'], best: 'Chill weekends', bodyPos: { top: '20%', left: '28%', width: '58%' } },
+      { id: 'tutu', name: 'Party Tutu', emoji: '💃', price: 18, sizes: ['S', 'M'], best: 'Birthdays', bodyPos: { top: '45%', left: '30%', width: '50%' } },
+      { id: 'cape', name: 'Super Cape', emoji: '🦸', price: 22, sizes: ['M', 'L', 'XL'], best: 'Halloween', bodyPos: { top: '18%', left: '20%', width: '65%' } },
+    ];
 
-    function renderDogs(filter = '') {
-      const key = filter.trim().toLowerCase();
-      const filtered = dogs.filter(d => d.species.toLowerCase().includes(key));
+    // ===================== STATE =====================
+    let selectedBreed = breeds[0];
+    let selectedClothing = null;
+    let selectedSize = 'M';
+    let dragGhost = null;
+    let dragItem = null;
 
-      dogList.innerHTML = filtered.length ? filtered.map(d => `
-        <article class="dog-item">
-          <img class="dog-pic" src="${d.image}" alt="${d.species} icon" loading="lazy" />
-          <div class="name">${d.species}</div>
-          <div class="meta">Size: ${d.size}</div>
-          ${d.style.map(s => `<span class="tag">${s}</span>`).join('')}
-        </article>
-      `).join('') : '<p>No species found. Try a different keyword.</p>';
+    // ===================== DOM =====================
+    const breedList = document.getElementById('breedList');
+    const clothingGrid = document.getElementById('clothingGrid');
+    const stage = document.getElementById('stage');
+    const dogDisplay = document.getElementById('dogDisplay');
+    const priceTag = document.getElementById('priceTag');
+    const sizeRow = document.getElementById('sizeRow');
+    const fitBadge = document.getElementById('fitBadge');
+    const removeBtn = document.getElementById('removeBtn');
+    const notification = document.getElementById('notification');
+
+    // ===================== DOG SVG RENDERING =====================
+    function getDogSVG(color) {
+      return `<svg viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg" class="dog-svg">
+        <!-- Body -->
+        <ellipse cx="150" cy="155" rx="85" ry="55" fill="${color}" opacity="0.9"/>
+        <!-- Head -->
+        <circle cx="220" cy="110" r="42" fill="${color}"/>
+        <!-- Ear left -->
+        <ellipse cx="200" cy="72" rx="14" ry="22" fill="${color}" transform="rotate(-15 200 72)" opacity="0.85"/>
+        <!-- Ear right -->
+        <ellipse cx="244" cy="78" rx="14" ry="20" fill="${color}" transform="rotate(15 244 78)" opacity="0.85"/>
+        <!-- Snout -->
+        <ellipse cx="252" cy="118" rx="18" ry="12" fill="${adjustColor(color, 20)}"/>
+        <!-- Nose -->
+        <ellipse cx="264" cy="114" rx="6" ry="5" fill="#2b2521"/>
+        <!-- Eye -->
+        <circle cx="232" cy="104" r="6" fill="#2b2521"/>
+        <circle cx="234" cy="102" r="2.5" fill="white"/>
+        <!-- Mouth -->
+        <path d="M250 123 Q258 130 264 123" fill="none" stroke="#c97a5a" stroke-width="2" stroke-linecap="round"/>
+        <!-- Front legs -->
+        <rect x="112" y="195" width="18" height="40" rx="9" fill="${color}"/>
+        <rect x="145" y="195" width="18" height="40" rx="9" fill="${color}"/>
+        <!-- Back legs -->
+        <rect x="175" y="195" width="18" height="38" rx="9" fill="${color}"/>
+        <rect x="200" y="195" width="18" height="38" rx="9" fill="${adjustColor(color, -10)}"/>
+        <!-- Tail -->
+        <path d="M68 140 Q45 100 60 80" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round"/>
+        <!-- Collar -->
+        <ellipse cx="195" cy="138" rx="32" ry="6" fill="#ff7043" opacity="0.8"/>
+        <circle cx="195" cy="144" r="4" fill="#ffd700"/>
+        <!-- Paws -->
+        <ellipse cx="121" cy="237" rx="12" ry="6" fill="${adjustColor(color, -15)}"/>
+        <ellipse cx="154" cy="237" rx="12" ry="6" fill="${adjustColor(color, -15)}"/>
+        <ellipse cx="184" cy="235" rx="12" ry="6" fill="${adjustColor(color, -15)}"/>
+        <ellipse cx="209" cy="235" rx="12" ry="6" fill="${adjustColor(color, -15)}"/>
+        <!-- Belly highlight -->
+        <ellipse cx="155" cy="170" rx="50" ry="20" fill="white" opacity="0.15"/>
+        <!-- Tongue (cute) -->
+        <ellipse cx="258" cy="130" rx="5" ry="7" fill="#ff8a80" opacity="0.9"/>
+      </svg>`;
     }
 
-    function renderWears() {
-      wearList.innerHTML = wears.map(w => `
-        <article class="wear-item">
-          <img class="wear-pic" src="${w.image}" alt="${w.name}" loading="lazy" />
-          <div class="name">${w.name}</div>
-          <div class="meta">Best for: ${w.bestFor}</div>
-          <div class="meta">Sizes: ${w.fitSizes.join(', ')}</div>
-          <button type="button" data-wear-id="${w.id}" class="quick-try">Try this wear</button>
-        </article>
+    function adjustColor(hex, amount) {
+      const num = parseInt(hex.replace('#', ''), 16);
+      const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+      const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+      const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+      return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+    }
+
+    // ===================== RENDER BREEDS =====================
+    function renderBreeds() {
+      breedList.innerHTML = breeds.map(b => `
+        <div class="breed-card ${b.id === selectedBreed.id ? 'active' : ''}" data-id="${b.id}">
+          <div class="breed-avatar" style="background: ${b.color}22;">${b.emoji}</div>
+          <div class="breed-info">
+            <div class="breed-name">${b.name}</div>
+            <div class="breed-meta">${b.traits.join(' · ')}</div>
+          </div>
+          <span class="breed-size">${b.size}</span>
+        </div>
       `).join('');
-    }
 
-    function populateSelects() {
-      dogs.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.id;
-        opt.textContent = `${d.species} (${d.size})`;
-        selectedDog.appendChild(opt);
-      });
-      wears.forEach(w => {
-        const opt = document.createElement('option');
-        opt.value = w.id;
-        opt.textContent = w.name;
-        selectedWear.appendChild(opt);
+      breedList.querySelectorAll('.breed-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const breed = breeds.find(b => b.id === card.dataset.id);
+          if (breed) {
+            selectedBreed = breed;
+            renderBreeds();
+            renderDog();
+            checkFit();
+          }
+        });
       });
     }
 
-    function tryOnOutfit() {
-      const dog = dogs.find(d => d.id === selectedDog.value);
-      const wear = wears.find(w => w.id === selectedWear.value);
+    // ===================== RENDER CLOTHING =====================
+    function renderClothing() {
+      clothingGrid.innerHTML = clothing.map(c => `
+        <div class="clothing-card ${selectedClothing?.id === c.id ? 'active' : ''}"
+             data-id="${c.id}" draggable="true">
+          <span class="clothing-emoji">${c.emoji}</span>
+          <div class="clothing-name">${c.name}</div>
+          <div class="clothing-price">$${c.price}</div>
+          <div class="clothing-best">${c.best}</div>
+        </div>
+      `).join('');
 
-      if (!dog || !wear) {
-        resultBox.textContent = 'Please choose both dog species and dogwear first.';
+      // Setup drag events
+      clothingGrid.querySelectorAll('.clothing-card').forEach(card => {
+        // Drag start
+        card.addEventListener('dragstart', (e) => {
+          dragItem = clothing.find(c => c.id === card.dataset.id);
+          card.classList.add('dragging');
+
+          // Create custom ghost
+          dragGhost = document.createElement('div');
+          dragGhost.className = 'drag-ghost';
+          dragGhost.textContent = dragItem.emoji;
+          document.body.appendChild(dragGhost);
+
+          // Hide default ghost
+          const img = new Image();
+          img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+          e.dataTransfer.setDragImage(img, 0, 0);
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          if (dragGhost) {
+            dragGhost.remove();
+            dragGhost = null;
+          }
+          dragItem = null;
+        });
+
+        // Click to try on
+        card.addEventListener('click', () => {
+          const item = clothing.find(c => c.id === card.dataset.id);
+          applyClothing(item);
+        });
+
+        // Touch drag support
+        card.addEventListener('touchstart', (e) => {
+          dragItem = clothing.find(c => c.id === card.dataset.id);
+          card.classList.add('dragging');
+
+          dragGhost = document.createElement('div');
+          dragGhost.className = 'drag-ghost';
+          dragGhost.textContent = dragItem.emoji;
+          document.body.appendChild(dragGhost);
+
+          const touch = e.touches[0];
+          dragGhost.style.left = (touch.clientX - 30) + 'px';
+          dragGhost.style.top = (touch.clientY - 30) + 'px';
+        }, { passive: true });
+      });
+    }
+
+    // Touch move (global)
+    document.addEventListener('touchmove', (e) => {
+      if (!dragGhost) return;
+      const touch = e.touches[0];
+      dragGhost.style.left = (touch.clientX - 30) + 'px';
+      dragGhost.style.top = (touch.clientY - 30) + 'px';
+
+      const stageRect = stage.getBoundingClientRect();
+      const isOver = touch.clientX >= stageRect.left && touch.clientX <= stageRect.right &&
+                     touch.clientY >= stageRect.top && touch.clientY <= stageRect.bottom;
+      stage.classList.toggle('drag-over', isOver);
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+      if (!dragItem) return;
+
+      if (stage.classList.contains('drag-over')) {
+        applyClothing(dragItem);
+      }
+
+      stage.classList.remove('drag-over');
+      if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+      document.querySelectorAll('.clothing-card.dragging').forEach(c => c.classList.remove('dragging'));
+      dragItem = null;
+    });
+
+    // Mouse move for ghost
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (dragGhost) {
+        dragGhost.style.left = (e.clientX - 30) + 'px';
+        dragGhost.style.top = (e.clientY - 30) + 'px';
+      }
+    });
+
+    // Stage drag events
+    stage.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      stage.classList.add('drag-over');
+    });
+
+    stage.addEventListener('dragleave', () => {
+      stage.classList.remove('drag-over');
+    });
+
+    stage.addEventListener('drop', (e) => {
+      e.preventDefault();
+      stage.classList.remove('drag-over');
+      if (dragItem) {
+        applyClothing(dragItem);
+      }
+    });
+
+    // ===================== APPLY CLOTHING =====================
+    function applyClothing(item) {
+      selectedClothing = item;
+      renderClothing();
+      renderDog();
+      checkFit();
+      updatePrice();
+
+      // Animate stage
+      stage.classList.add('drop-success');
+      setTimeout(() => stage.classList.remove('drop-success'), 600);
+
+      // Sparkles!
+      createSparkles();
+
+      // Show notification
+      const fit = item.sizes.includes(selectedBreed.size);
+      showNotification(
+        fit ? '✨' : '⚠️',
+        fit ? `${item.name} looks great on ${selectedBreed.name}!` : `${item.name} might not fit ${selectedBreed.name} (size ${selectedBreed.size})`
+      );
+
+      // Show remove button
+      removeBtn.classList.add('visible');
+    }
+
+    // ===================== RENDER DOG =====================
+    function renderDog() {
+      let html = getDogSVG(selectedBreed.color);
+
+      if (selectedClothing) {
+        const pos = selectedClothing.bodyPos;
+        html += `<div class="clothing-overlay appear" style="
+          top: ${pos.top}; left: ${pos.left}; width: ${pos.width};
+          font-size: ${parseInt(pos.width) > 50 ? '4rem' : '2.5rem'};
+          text-align: center;
+        ">${selectedClothing.emoji}</div>`;
+      }
+
+      dogDisplay.innerHTML = html;
+    }
+
+    // ===================== CHECK FIT =====================
+    function checkFit() {
+      if (!selectedClothing) {
+        fitBadge.innerHTML = '';
         return;
       }
 
-      dogBase.src = dog.image;
-      dogBase.alt = dog.species;
-      wearOverlay.src = wear.image;
-      wearOverlay.alt = `${wear.name} on ${dog.species}`;
-      wearOverlay.hidden = false;
-
-      const fit = wear.fitSizes.includes(dog.size);
-      resultBox.innerHTML = fit
-        ? `<strong>Great match!</strong> ${wear.name} fits ${dog.species} (${dog.size}) and works for ${wear.bestFor}.`
-        : `<strong>Size warning.</strong> ${wear.name} is for ${wear.fitSizes.join(', ')}, but ${dog.species} is ${dog.size}.`;
+      const fits = selectedClothing.sizes.includes(selectedSize);
+      fitBadge.innerHTML = fits
+        ? `<span class="fit-badge good">Perfect fit for size ${selectedSize}!</span>`
+        : `<span class="fit-badge warn">Size ${selectedSize} not available — try ${selectedClothing.sizes.join(', ')}</span>`;
     }
 
-    function clearTryOn() {
-      wearOverlay.hidden = true;
-      wearOverlay.removeAttribute('src');
-      resultBox.innerHTML = 'Cleared. Pick another dogwear to test again.';
+    // ===================== UPDATE PRICE =====================
+    function updatePrice() {
+      const target = selectedClothing ? selectedClothing.price : 0;
+      animatePrice(target);
     }
 
-    dogSearch.addEventListener('input', e => renderDogs(e.target.value));
-    tryBtn.addEventListener('click', tryOnOutfit);
-    clearBtn.addEventListener('click', clearTryOn);
+    function animatePrice(target) {
+      const el = priceTag;
+      const current = parseInt(el.textContent.replace('$', '')) || 0;
+      const diff = target - current;
+      const steps = 20;
+      let step = 0;
 
-    wearList.addEventListener('click', event => {
-      const button = event.target.closest('.quick-try');
-      if (!button) return;
-      selectedWear.value = button.dataset.wearId;
-      tryOnOutfit();
+      const timer = setInterval(() => {
+        step++;
+        const value = Math.round(current + (diff * (step / steps)));
+        el.textContent = `$${value}`;
+        if (step >= steps) clearInterval(timer);
+      }, 20);
+    }
+
+    // ===================== SIZE BUTTONS =====================
+    sizeRow.querySelectorAll('.size-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedSize = btn.dataset.size;
+        sizeRow.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        checkFit();
+      });
     });
 
-    selectedDog.addEventListener('change', () => {
-      const dog = dogs.find(d => d.id === selectedDog.value);
-      if (dog) {
-        dogBase.src = dog.image;
-        dogBase.alt = dog.species;
+    // ===================== REMOVE BUTTON =====================
+    removeBtn.addEventListener('click', () => {
+      selectedClothing = null;
+      renderClothing();
+      renderDog();
+      updatePrice();
+      fitBadge.innerHTML = '';
+      removeBtn.classList.remove('visible');
+      showNotification('🧹', 'Clothing removed');
+    });
+
+    // ===================== SPARKLES =====================
+    function createSparkles() {
+      const rect = stage.getBoundingClientRect();
+      for (let i = 0; i < 12; i++) {
+        const sparkle = document.createElement('div');
+        sparkle.className = 'sparkle';
+        sparkle.style.left = (rect.left + Math.random() * rect.width) + 'px';
+        sparkle.style.top = (rect.top + Math.random() * rect.height) + 'px';
+        sparkle.style.background = ['#ff7043', '#6c5ce7', '#ffd700', '#00b894', '#ff6b6b'][Math.floor(Math.random() * 5)];
+        sparkle.style.width = sparkle.style.height = (4 + Math.random() * 8) + 'px';
+        document.body.appendChild(sparkle);
+        setTimeout(() => sparkle.remove(), 800);
       }
-    });
+    }
 
-    renderDogs();
-    renderWears();
-    populateSelects();
-    dogBase.src = dogs[0].image;
-    dogBase.alt = dogs[0].species;
+    // ===================== NOTIFICATION =====================
+    function showNotification(icon, text) {
+      document.getElementById('notifIcon').textContent = icon;
+      document.getElementById('notifText').textContent = text;
+      notification.classList.add('show');
+      setTimeout(() => notification.classList.remove('show'), 3000);
+    }
+
+    // ===================== INIT =====================
+    renderBreeds();
+    renderClothing();
+    renderDog();
   </script>
 </body>
 </html>
