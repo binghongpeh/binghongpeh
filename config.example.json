@@ -1,0 +1,21 @@
+{
+  "siteUrl": "https://www.example-ticket-site.com/login",
+  "eventUrl": "https://www.example-ticket-site.com/event/nexz-mmchk-bangkok",
+  "credentials": {
+    "username": "YOUR_USERNAME",
+    "password": "YOUR_PASSWORD"
+  },
+  "booking": {
+    "preferredZones": ["B1", "B2", "A1"],
+    "showRound": "2026-07-04",
+    "ticketCount": 1,
+    "pickupMethod": "self",
+    "agreeTerms": true
+  },
+  "timing": {
+    "openTimeISO": null,
+    "preOpenLeadMs": 1500,
+    "pollIntervalMs": 250,
+    "navTimeoutMs": 30000
+  }
+}
