@@ -1,254 +1,302 @@
-// Automated login + seat selection for the NEXZ Global Showcase
-// "Mmchk : Not Typical" ticket flow.
+// Automated login + seat selection for NEXZ Global Showcase "Mmchk : Not Typical"
+// Ticket site: imethai.com
 //
-// Usage:
-//   1) cp config.example.json config.json  (then fill in your credentials)
+// Setup:
+//   1) cp config.example.json config.json   (fill in username/password/zones)
 //   2) npm install && npm run install:browsers
-//   3) npm run book          (headless)
-//      npm run book:headed   (visible browser - recommended first run)
+//   3) npm run book:headed    (first run - visible so you can verify each step)
+//      npm run book           (headless once you've confirmed it works)
 //
-// The script intentionally pauses for the user to solve the CAPTCHA when one
-// appears - that step cannot (and should not) be bypassed automatically.
+// CAPTCHA: the script pauses and waits up to 3 min for you to solve it manually.
+// Payment: left to you - the browser stays open after reaching the payment page.
 
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 if (!fs.existsSync(CONFIG_PATH)) {
-  console.error('Missing config.json. Copy config.example.json to config.json and fill it in.');
+  console.error('Missing config.json – copy config.example.json and fill it in.');
   process.exit(1);
 }
 const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
 
-const HEADED = process.env.HEADED === '1';
+const HEADED      = process.env.HEADED === '1';
 const NAV_TIMEOUT = cfg.timing?.navTimeoutMs ?? 30000;
+const POLL_MS     = cfg.timing?.pollIntervalMs ?? 250;
 
-const log = (...args) => console.log(`[${new Date().toISOString()}]`, ...args);
+const log = (...a) => console.log(`[${new Date().toISOString()}]`, ...a);
 
-async function waitUntilOpen(openTimeISO, leadMs = 1500) {
-  if (!openTimeISO) return;
-  const target = new Date(openTimeISO).getTime() - leadMs;
-  const wait = target - Date.now();
-  if (wait > 0) {
-    log(`Waiting ${(wait / 1000).toFixed(1)}s until just before open time...`);
-    await new Promise(r => setTimeout(r, wait));
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+async function firstVisible(page, selectors) {
+  for (const sel of selectors) {
+    try {
+      const loc = page.locator(sel).first();
+      if (await loc.count() && await loc.isVisible()) return loc;
+    } catch { /* continue */ }
+  }
+  return null;
+}
+
+async function waitUntilOpen(iso, leadMs = 1500) {
+  if (!iso) return;
+  const gap = new Date(iso).getTime() - leadMs - Date.now();
+  if (gap > 0) {
+    log(`Sleeping ${(gap / 1000).toFixed(1)}s until just before ticket open...`);
+    await new Promise(r => setTimeout(r, gap));
   }
 }
 
+// ─── step 1: login ───────────────────────────────────────────────────────────
+// imethai login form field names – update if the site changes them.
+// You can find the real names by doing F12 → Elements → inspect the login form.
+
 async function login(page) {
-  log('Navigating to login page:', cfg.siteUrl);
+  log('Opening site:', cfg.siteUrl);
   await page.goto(cfg.siteUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
 
-  // Try a few common selectors for username / password fields.
-  const userSelectors = [
-    'input[name="username"]', 'input[name="user"]', 'input[name="email"]',
-    'input[id*="user" i]', 'input[type="email"]', 'input[placeholder*="user" i]'
-  ];
-  const passSelectors = [
-    'input[name="password"]', 'input[id*="pass" i]',
-    'input[type="password"]', 'input[placeholder*="pass" i]'
-  ];
+  // Known imethai selectors (update with real ones from DevTools if these fail):
+  const userField = await firstVisible(page, [
+    'input[name="username"]', 'input[name="user_login"]', 'input[name="user"]',
+    'input[id="username"]',   'input[id="user_login"]',
+    'input[type="email"]',    'input[placeholder*="user" i]', 'input[placeholder*="email" i]'
+  ]);
+  const passField = await firstVisible(page, [
+    'input[name="password"]', 'input[name="user_pass"]', 'input[name="pass"]',
+    'input[id="password"]',   'input[id="user_pass"]',
+    'input[type="password"]'
+  ]);
 
-  const userField = await firstVisible(page, userSelectors);
-  const passField = await firstVisible(page, passSelectors);
-  if (!userField || !passField) throw new Error('Could not find login fields - update selectors in auto-book.js');
+  if (!userField || !passField) {
+    await page.screenshot({ path: 'debug-login.png', fullPage: true });
+    throw new Error('Login fields not found – see debug-login.png. Update selectors.');
+  }
 
   await userField.fill(cfg.credentials.username);
   await passField.fill(cfg.credentials.password);
 
-  const submit = await firstVisible(page, [
-    'button[type="submit"]', 'input[type="submit"]',
-    'button:has-text("Login")', 'button:has-text("Sign in")',
-    'button:has-text("เข้าสู่ระบบ")'
-  ]);
-  if (!submit) throw new Error('Could not find login submit button');
+  if (await hasCaptcha(page)) await waitForCaptcha(page);
 
-  // CAPTCHA handling: if a captcha widget is present, ask the user to solve it.
-  if (await hasCaptcha(page)) {
-    log('CAPTCHA detected - please solve it in the visible browser window. Waiting up to 3 minutes...');
-    await page.waitForFunction(() => {
-      const el = document.querySelector('input[name="captcha"], #captcha, .captcha');
-      return el && (el.value || el.dataset.solved === 'true');
-    }, { timeout: 3 * 60 * 1000 }).catch(() => {});
-  }
+  const submitBtn = await firstVisible(page, [
+    'button[type="submit"]', 'input[type="submit"]',
+    'button:has-text("Login")', 'button:has-text("เข้าสู่ระบบ")',
+    'a:has-text("เข้าสู่ระบบ")'
+  ]);
+  if (!submitBtn) throw new Error('Login submit button not found');
 
   await Promise.all([
     page.waitForLoadState('networkidle').catch(() => {}),
-    submit.click()
+    submitBtn.click()
   ]);
   log('Login submitted.');
 }
 
 async function hasCaptcha(page) {
-  return await page.evaluate(() => {
-    return !!document.querySelector(
-      'iframe[src*="captcha"], iframe[src*="recaptcha"], #captcha, .captcha, [class*="captcha" i]'
-    );
-  });
+  return page.evaluate(() =>
+    !!document.querySelector('iframe[src*="captcha"],iframe[src*="recaptcha"],#captcha,.captcha,[class*="captcha" i]')
+  );
 }
 
-async function firstVisible(page, selectors) {
-  for (const sel of selectors) {
-    const loc = page.locator(sel).first();
-    if (await loc.count() && await loc.isVisible().catch(() => false)) return loc;
-  }
-  return null;
+async function waitForCaptcha(page) {
+  log('CAPTCHA detected – solve it in the browser. Waiting up to 3 minutes...');
+  await page.waitForFunction(() => {
+    // Resolve once the captcha iframe disappears or a success token appears
+    const iframe = document.querySelector('iframe[src*="captcha"],iframe[src*="recaptcha"]');
+    const token  = document.querySelector('textarea#g-recaptcha-response,input[name="captcha_token"]');
+    return !iframe || (token && token.value.length > 0);
+  }, { timeout: 3 * 60 * 1000 }).catch(() => log('CAPTCHA wait timed out – continuing anyway.'));
 }
 
-async function gotoEvent(page) {
-  if (!cfg.eventUrl) return;
-  log('Navigating to event page:', cfg.eventUrl);
+// ─── step 2: navigate directly to step.php (buy-ticket page) ─────────────────
+
+async function gotoBookingStep(page) {
+  log('Navigating to buy-ticket step:', cfg.eventUrl);
   await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-
-  // Click "Buy ticket" / "ซื้อบัตร" if present.
-  const buy = await firstVisible(page, [
-    'a:has-text("Buy")', 'button:has-text("Buy")',
-    'a:has-text("ซื้อบัตร")', 'button:has-text("ซื้อบัตร")',
-    'a:has-text("Book")', 'button:has-text("Book")'
-  ]);
-  if (buy) await buy.click();
+  await page.waitForTimeout(600);
 }
+
+// ─── step 3: select show round (if multiple rounds shown) ────────────────────
 
 async function selectShowRound(page) {
   if (!cfg.booking.showRound) return;
-  const round = page.locator(`:text("${cfg.booking.showRound}")`).first();
-  if (await round.count()) {
-    log('Selecting show round:', cfg.booking.showRound);
-    await round.click().catch(() => {});
+  const dateText = cfg.booking.showRound; // e.g. "04/07/2026" or "2026-07-04"
+  const loc = page.locator(`text="${dateText}"`).first();
+  if (await loc.count()) {
+    log('Selecting round:', dateText);
+    await loc.click();
+    await page.waitForTimeout(500);
   }
 }
 
-// Tries to click into the desired zone in the seat-plan SVG/map.
-// The zone is identified by visible text like "B1", "A2", etc.
+// ─── step 4: zone / section selection ───────────────────────────────────────
+// imethai seat maps are usually SVG elements where each zone is an <a> or
+// <path>/<polygon> with a title or id matching the section label (e.g. "B1").
+// UPDATE the selectors below once you share the seat map HTML.
+
 async function selectZone(page, preferredZones) {
-  log('Looking for preferred zones:', preferredZones.join(', '));
+  log('Waiting for seat map...');
   await page.waitForLoadState('domcontentloaded');
+
+  // Candidate selectors – covers SVG maps, image-maps, and div-based layouts.
+  const buildSelectors = zone => [
+    // SVG text label
+    `svg text:has-text("${zone}")`,
+    // SVG group/path with title
+    `g[id="${zone}"]`, `g[data-zone="${zone}"]`, `g[title="${zone}"]`,
+    `path[id="${zone}"]`, `path[data-zone="${zone}"]`,
+    // Anchor wrapping a zone
+    `a[href*="${zone}"]`, `a[title="${zone}"]`,
+    // Image-map area
+    `area[alt="${zone}"]`, `area[title="${zone}"]`,
+    // Div / table cell
+    `[data-section="${zone}"]`, `[data-zone="${zone}"]`,
+    `td:has-text("${zone}")`, `div.zone:has-text("${zone}")`,
+    // Fallback: any element whose visible text exactly matches
+    `:text-is("${zone}")`
+  ];
 
   for (const zone of preferredZones) {
-    // Common patterns: <text>, <a title="B1">, <area alt="B1">, sold-out checks.
-    const candidates = [
-      `svg text:has-text("${zone}")`,
-      `[data-zone="${zone}"]`,
-      `[aria-label="${zone}"]`,
-      `area[alt="${zone}"]`,
-      `a[title="${zone}"]`,
-      `:text-is("${zone}")`
-    ];
+    log(`Trying zone: ${zone}`);
+    for (const sel of buildSelectors(zone)) {
+      try {
+        const loc = page.locator(sel).first();
+        if (!await loc.count()) continue;
 
-    for (const sel of candidates) {
-      const loc = page.locator(sel).first();
-      if (!(await loc.count())) continue;
+        // Skip sold-out zones
+        const cls = (await loc.getAttribute('class')) ?? '';
+        if (/sold.?out|disabled|unavail|full/i.test(cls)) {
+          log(`  ${zone} appears sold out (${sel}), skipping.`);
+          break;
+        }
 
-      // Skip obviously sold-out zones.
-      const className = (await loc.getAttribute('class')) || '';
-      if (/sold|disabled|unavailable/i.test(className)) continue;
-
-      log(`Clicking zone ${zone} via selector: ${sel}`);
-      await loc.scrollIntoViewIfNeeded().catch(() => {});
-      await loc.click({ force: true });
-      await page.waitForTimeout(800);
-      return zone;
+        log(`  Clicking zone ${zone} via: ${sel}`);
+        await loc.scrollIntoViewIfNeeded().catch(() => {});
+        await loc.click({ force: true, timeout: 4000 });
+        await page.waitForTimeout(800);
+        return zone;
+      } catch { /* try next selector */ }
     }
   }
-  throw new Error('No preferred zone was clickable - check the seat plan or update preferredZones.');
+
+  await page.screenshot({ path: 'debug-zone.png', fullPage: true });
+  throw new Error('No preferred zone was clickable – see debug-zone.png. Inspect the zone selectors.');
 }
 
-// Picks the first available seat checkbox/cell in the seat-selection grid.
-async function pickSeats(page, count) {
-  log(`Picking ${count} available seat(s)...`);
-  await page.waitForLoadState('domcontentloaded');
+// ─── step 5: pick seats ──────────────────────────────────────────────────────
 
-  // Wait for the seat grid to render.
+async function pickSeats(page, count) {
+  log(`Picking ${count} seat(s)...`);
+
   await page.waitForSelector(
-    'input[type="checkbox"][name*="seat" i], .seat:not(.sold):not(.disabled), [data-seat]',
+    [
+      'input[type="checkbox"][name*="seat" i]',
+      '.seat:not(.sold):not(.disabled)',
+      '[class*="seat"]:not([class*="sold"]):not([class*="disabled"])',
+      'td.available', 'td.seat',
+      'rect[class*="seat"]', 'rect[class*="avail"]'
+    ].join(', '),
     { timeout: NAV_TIMEOUT }
   );
 
-  const seats = await page.locator(
-    'input[type="checkbox"][name*="seat" i]:not([disabled]), ' +
-    '.seat.available, .seat:not(.sold):not(.disabled):not(.reserved), ' +
-    '[data-seat]:not(.sold):not(.disabled)'
-  ).all();
+  const seatSel = [
+    'input[type="checkbox"][name*="seat" i]:not([disabled])',
+    '.seat.available', '.seat:not(.sold):not(.disabled):not(.reserved)',
+    'td.seat:not(.sold)', 'td.available',
+    'rect[class*="avail"]',
+    '[data-status="available"]', '[data-seat]:not([data-status="sold"])'
+  ].join(', ');
 
+  const seats = await page.locator(seatSel).all();
   let picked = 0;
   for (const seat of seats) {
     if (picked >= count) break;
-    const isVisible = await seat.isVisible().catch(() => false);
-    if (!isVisible) continue;
+    if (!await seat.isVisible().catch(() => false)) continue;
     try {
       await seat.click({ timeout: 2000 });
       picked++;
+      log(`  Seat ${picked}/${count} selected.`);
+      await page.waitForTimeout(300);
     } catch { /* try next */ }
   }
-  if (picked < count) throw new Error(`Only picked ${picked}/${count} seats - zone may be sold out.`);
-  log(`Picked ${picked} seat(s).`);
-}
 
-async function chooseDelivery(page, method) {
-  if (!method) return;
-  const map = {
-    self: ['Self pickup', 'รับเอง', 'รับด้วยตนเอง'],
-    ems:  ['EMS']
-  };
-  const labels = map[method] || [method];
-  for (const text of labels) {
-    const opt = page.locator(`label:has-text("${text}"), input[value*="${text}" i]`).first();
-    if (await opt.count()) {
-      await opt.click().catch(() => {});
-      log('Selected pickup method:', text);
-      return;
-    }
+  if (picked < count) {
+    await page.screenshot({ path: 'debug-seats.png', fullPage: true });
+    throw new Error(`Only picked ${picked}/${count} seats – see debug-seats.png.`);
   }
 }
+
+// ─── step 6: pickup method ───────────────────────────────────────────────────
+
+async function choosePickup(page, method) {
+  if (!method) return;
+  const labels = { self: ['Self', 'รับเอง', 'รับด้วยตนเอง'], ems: ['EMS'] };
+  const texts = labels[method] ?? [method];
+  for (const t of texts) {
+    const loc = await firstVisible(page, [
+      `label:has-text("${t}")`, `input[value="${t}"]`, `input[value*="${t}" i]`
+    ]);
+    if (loc) { await loc.click().catch(() => {}); log('Pickup:', t); return; }
+  }
+}
+
+// ─── step 7: accept terms ────────────────────────────────────────────────────
 
 async function acceptTerms(page) {
   if (!cfg.booking.agreeTerms) return;
-  const cb = page.locator('input[type="checkbox"][name*="agree" i], input[type="checkbox"][name*="term" i]').first();
-  if (await cb.count() && !(await cb.isChecked().catch(() => false))) {
-    await cb.check({ force: true }).catch(() => {});
-    log('Accepted terms.');
+  const cb = await firstVisible(page, [
+    'input[type="checkbox"][name*="agree" i]',
+    'input[type="checkbox"][name*="term" i]',
+    'input[type="checkbox"][id*="agree" i]'
+  ]);
+  if (cb && !await cb.isChecked().catch(() => false)) {
+    await cb.check({ force: true });
+    log('Terms accepted.');
   }
 }
 
-async function submitOrder(page) {
-  const next = await firstVisible(page, [
+// ─── step 8: next / confirm ──────────────────────────────────────────────────
+
+async function clickNext(page) {
+  const btn = await firstVisible(page, [
     'button:has-text("Next")', 'button:has-text("ถัดไป")',
     'button:has-text("Confirm")', 'button:has-text("ยืนยัน")',
-    'button[type="submit"]'
+    'input[type="submit"]', 'button[type="submit"]'
   ]);
-  if (next) {
-    log('Submitting order step...');
-    await next.click();
-  }
+  if (btn) { log('Clicking next/confirm...'); await btn.click(); }
 }
+
+// ─── main ────────────────────────────────────────────────────────────────────
 
 (async () => {
   await waitUntilOpen(cfg.timing?.openTimeISO, cfg.timing?.preOpenLeadMs);
 
-  const browser = await chromium.launch({ headless: !HEADED });
-  const context = await browser.newContext({ viewport: { width: 1366, height: 900 } });
+  const browser = await chromium.launch({ headless: !HEADED, slowMo: HEADED ? 80 : 0 });
+  const context = await browser.newContext({
+    viewport: { width: 1366, height: 900 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(NAV_TIMEOUT);
 
   try {
     await login(page);
-    await gotoEvent(page);
+    await gotoBookingStep(page);
     await selectShowRound(page);
     await selectZone(page, cfg.booking.preferredZones);
     await pickSeats(page, cfg.booking.ticketCount);
-    await chooseDelivery(page, cfg.booking.pickupMethod);
+    await choosePickup(page, cfg.booking.pickupMethod);
     await acceptTerms(page);
-    await submitOrder(page);
+    await clickNext(page);
 
-    log('Reached payment / confirmation screen. Complete payment manually.');
+    log('SUCCESS – reached payment screen. Complete payment in the browser.');
+
     if (HEADED) {
-      log('Browser will stay open for 10 minutes so you can finish payment.');
-      await page.waitForTimeout(10 * 60 * 1000);
+      log('Browser stays open for 15 minutes.');
+      await page.waitForTimeout(15 * 60 * 1000);
     }
   } catch (err) {
-    console.error('Automation failed:', err.message);
-    await page.screenshot({ path: `error-${Date.now()}.png`, fullPage: true }).catch(() => {});
+    console.error('\nAutomation failed:', err.message);
     process.exitCode = 1;
   } finally {
     if (!HEADED) await browser.close();
