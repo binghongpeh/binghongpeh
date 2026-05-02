@@ -253,17 +253,12 @@ async function login(page) {
 async function gotoBookingStep(page) {
   log('Going to event step page:', cfg.eventUrl);
 
-  // Phrases that indicate the booking has NOT started yet (alert dialogs / banners).
-  // These are very specific so we don't match "ราคายังไม่รวม" etc on the seat map.
-  const NOT_OPEN_PATTERNS = [
-    /ยังไม่เปิดจำหน่าย/i,
-    /ticket.*will.*go.*on.*sale/i,
-    /ticket.*not.*yet.*on.*sale/i,
-    /coming.*soon/i
-  ];
-
-  // Auto-dismiss any "not yet open" JS alert that imethai shows pre-launch.
-  page.on('dialog', async d => { log('Dialog:', d.message()); await d.dismiss().catch(() => {}); });
+  // Auto-dismiss the imethai "ticket will go on sale" alert when it pops up
+  // pre-launch. After dismissal the site usually redirects to index page.
+  page.on('dialog', async d => {
+    log('JS dialog detected:', d.message().slice(0, 120));
+    await d.accept().catch(() => d.dismiss().catch(() => {}));
+  });
 
   const MAX_RETRIES = 1200;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -271,27 +266,24 @@ async function gotoBookingStep(page) {
       await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
     } catch (e) { /* retry */ }
     await solveCaptchas(page).catch(() => {});
+    await wait(150); // let any post-load JS alerts fire
 
-    // POSITIVE detection: seat map is present if we see a <map>/area, an <svg>
-    // with zone-like elements, or any of the known zone labels in the DOM.
-    const ready = await page.evaluate(() => {
-      const html = document.documentElement.innerHTML;
-      const hasMap   = !!document.querySelector('map area, area[href], svg a, svg [id]');
-      const hasZones = /\b(STANDING|FOH|STAGE|LEVEL\s*2)\b/i.test(html)
-                    || /\b(B1|B2|M1|M2|M3|M4|M5|L2|L3|L4|L5|L6|L7|L8|R2|R3|R4|R5|R6|R7|R8)\b/.test(html);
-      return hasMap || hasZones;
-    }).catch(() => false);
+    const finalUrl = page.url();
+    const onStepPage = /step\.php/i.test(finalUrl);
 
-    if (ready) {
-      log(`Booking page loaded (attempt ${attempt}).`);
-      await page.waitForTimeout(200);
+    if (onStepPage) {
+      log(`Booking page loaded (attempt ${attempt}). URL: ${finalUrl}`);
+      // Save full HTML for debugging the real DOM structure
+      try {
+        const html = await page.content();
+        fs.writeFileSync(path.join(__dirname, 'debug-page.html'), html);
+        log('Saved debug-page.html (' + html.length + ' bytes)');
+      } catch {}
       return;
     }
 
-    const bodyText = await page.evaluate(() => document.body?.innerText ?? '').catch(() => '');
-    const notOpen  = NOT_OPEN_PATTERNS.some(re => re.test(bodyText));
-    if (attempt === 1 || attempt % 20 === 0) {
-      log(`Waiting for seat map${notOpen ? ' (not-open banner present)' : ''} – attempt ${attempt}`);
+    if (attempt === 1 || attempt % 10 === 0) {
+      log(`Redirected to ${finalUrl} – tickets likely not open yet (attempt ${attempt})`);
     }
     await wait(RETRY_MS);
   }
@@ -366,19 +358,35 @@ function zoneSelectors(zone) {
 async function dumpZoneCandidates(page) {
   const found = await page.evaluate(() => {
     const out = [];
-    document.querySelectorAll('area, svg a, svg [id], a[href]').forEach(el => {
+    const sel = 'area, a[href], a[onclick], [onclick], svg a, svg [id], form, button';
+    document.querySelectorAll(sel).forEach(el => {
+      const text = (el.innerText || el.textContent || '').trim().slice(0, 50);
       out.push({
-        tag:    el.tagName.toLowerCase(),
-        alt:    el.getAttribute('alt'),
-        title:  el.getAttribute('title'),
-        href:   el.getAttribute('href'),
-        id:     el.id || null,
-        cls:    el.getAttribute('class')
+        tag:     el.tagName.toLowerCase(),
+        alt:     el.getAttribute('alt'),
+        title:   el.getAttribute('title'),
+        href:    el.getAttribute('href'),
+        onclick: el.getAttribute('onclick'),
+        coords:  el.getAttribute('coords'),
+        shape:   el.getAttribute('shape'),
+        id:      el.id || null,
+        name:    el.getAttribute('name'),
+        cls:     el.getAttribute('class'),
+        text:    text || undefined
       });
     });
-    return out.slice(0, 60);
+    return out;
   }).catch(() => []);
-  log('Zone candidates on page:', JSON.stringify(found, null, 2));
+
+  try {
+    fs.writeFileSync(path.join(__dirname, 'debug-zones.json'), JSON.stringify(found, null, 2));
+    log(`Saved debug-zones.json (${found.length} elements)`);
+  } catch {}
+
+  // Also print the most interesting ones: <area> tags and elements with onclick
+  const interesting = found.filter(e => e.tag === 'area' || e.onclick);
+  log(`Interesting clickable elements (${interesting.length}):`);
+  interesting.slice(0, 40).forEach(e => log('  ' + JSON.stringify(e)));
 }
 
 async function selectZone(page, preferredZones) {
