@@ -542,17 +542,41 @@ async function handleTicketSelection(page, count) {
   if (qtyEl) {
     const tag = await qtyEl.evaluate(el => el.tagName.toLowerCase());
     log(`Standing mode detected (${tag}) – setting quantity to ${count}`);
-    try {
-      if (tag === 'select') {
-        await qtyEl.selectOption({ value: String(count) }).catch(async () => {
-          await qtyEl.selectOption({ label: String(count) }).catch(() => {});
-        });
+
+    if (tag === 'select') {
+      // Read all options so we don't hang waiting for a non-existent value/label.
+      const options = await qtyEl.evaluate(el =>
+        Array.from(el.options).map(o => ({ value: o.value, text: (o.textContent || '').trim() }))
+      ).catch(() => []);
+      const currentValue = await qtyEl.inputValue().catch(() => '');
+      log(`Qty options: ${JSON.stringify(options)} (current="${currentValue}")`);
+
+      const want  = String(count);
+      const match = options.find(o => o.value === want)
+                 || options.find(o => o.text === want)
+                 || options.find(o => o.value.trim() === want)
+                 || options.find(o => o.text.replace(/\s+/g, '') === want);
+
+      if (!match) {
+        log(`WARNING: no option matches "${want}" – skipping qty change.`);
+      } else if (currentValue === match.value) {
+        log(`Quantity already set to ${count} (value="${match.value}").`);
       } else {
-        await qtyEl.fill(String(count));
+        try {
+          await qtyEl.selectOption({ value: match.value }, { timeout: 3000 });
+          log(`Quantity set: value="${match.value}".`);
+        } catch (e) {
+          // Fallback: set directly via DOM
+          await qtyEl.evaluate((el, v) => {
+            el.value = v;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }, match.value);
+          log(`Quantity set via DOM fallback: value="${match.value}".`);
+        }
       }
-      log(`Quantity set to ${count}.`);
-    } catch (e) {
-      log('Quantity set failed:', e.message);
+    } else {
+      await qtyEl.fill(String(count));
+      log(`Quantity input filled with ${count}.`);
     }
     return;
   }
@@ -601,32 +625,44 @@ async function handleTicketSelection(page, count) {
 async function choosePickup(page, method) {
   if (!method) return;
 
-  const result = await page.evaluate(m => {
+  // 1) Find the matching radio's id
+  const info = await page.evaluate(m => {
     const wantsSelf = m === 'self';
     const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-
     for (const r of radios) {
-      // Match by associated label text (Self pickup / EMS)
-      const label = r.id ? document.querySelector(`label[for="${r.id}"]`) : null;
-      const row   = r.closest('tr,td,div,label,li,p') || r.parentElement;
-      const text  = (label?.innerText || row?.innerText || '').trim();
-
+      const lbl  = r.id ? document.querySelector(`label[for="${r.id}"]`) : null;
+      const row  = r.closest('tr,td,div,label,li,p') || r.parentElement;
+      const text = (lbl?.innerText || row?.innerText || '').trim();
       const isSelf = /รับด้วยตนเอง|self.?pickup/i.test(text);
       const isEms  = /EMS|ค่าส่ง/i.test(text);
-
       if ((wantsSelf && isSelf) || (!wantsSelf && isEms)) {
-        // Click the visible label (hidden radio trick) and force state
-        if (label) label.click();
-        r.checked = true;
-        r.dispatchEvent(new Event('change', { bubbles: true }));
-        return { ok: r.checked, name: r.name, value: r.value, text: text.slice(0, 60) };
+        return { id: r.id, name: r.name, value: r.value, text: text.slice(0, 60) };
       }
     }
-    return { ok: false };
-  }, method).catch(() => ({ ok: false }));
+    return null;
+  }, method).catch(() => null);
 
-  if (result.ok) log(`Pickup selected: name="${result.name}" value="${result.value}" ("${result.text}")`);
-  else            log('WARNING: pickup radio not found.');
+  if (!info) { log('WARNING: pickup radio not found.'); return; }
+
+  // 2) Real Playwright click on the visible label
+  if (info.id) {
+    try {
+      const label = page.locator(`label[for="${info.id}"]`).first();
+      await label.scrollIntoViewIfNeeded().catch(() => {});
+      await label.click({ force: true, timeout: 3000 });
+    } catch {}
+  }
+
+  // 3) Force state via DOM as fallback
+  await page.evaluate(id => {
+    const r = document.getElementById(id);
+    if (r && !r.checked) {
+      r.checked = true;
+      r.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, info.id).catch(() => {});
+
+  log(`Pickup selected: name="${info.name}" value="${info.value}" ("${info.text}")`);
 }
 
 // ─── step 7: accept terms ────────────────────────────────────────────────────
@@ -634,37 +670,43 @@ async function choosePickup(page, method) {
 async function acceptTerms(page) {
   if (!cfg.booking.agreeTerms) return;
 
-  // imethai uses the css-checkbox/css-label trick: the real <input> is hidden,
-  // and clicking the <label for="..."> toggles it. So we ALWAYS click the label.
-  const result = await page.evaluate(() => {
-    // 1) Try to find the terms checkbox by name="terms" or known id
-    let cb = document.querySelector('input[type="checkbox"][name="terms"]')
-          || document.querySelector('#checkboxG1')
-          || Array.from(document.querySelectorAll('input[type="checkbox"]'))
-              .find(c => {
-                const row = c.closest('tr,td,div,label,li,p') || c.parentElement;
-                return /agree|ข้าพเจ้ายอมรับ|เงื่อนไข|terms.*conditions/i.test(row?.innerText || '');
-              });
+  // 1) Find the terms checkbox id (usually "checkboxG1" / name="terms")
+  const cbId = await page.evaluate(() => {
+    const cb = document.querySelector('input[type="checkbox"][name="terms"]')
+            || document.querySelector('#checkboxG1')
+            || Array.from(document.querySelectorAll('input[type="checkbox"]'))
+                .find(c => {
+                  const row = c.closest('tr,td,div,label,li,p') || c.parentElement;
+                  return /agree|ข้าพเจ้ายอมรับ|เงื่อนไข|terms.*conditions/i.test(row?.innerText || '');
+                });
+    return cb ? cb.id : null;
+  }).catch(() => null);
 
-    if (!cb) return { ok: false, reason: 'no checkbox' };
+  if (!cbId) { log('WARNING: terms checkbox not found.'); return; }
 
-    // Click the matching <label for="..."> if it exists (toggles hidden checkbox)
-    const label = cb.id ? document.querySelector(`label[for="${cb.id}"]`) : null;
-    if (label && !cb.checked) label.click();
-    // Force the underlying state too for safety
+  // 2) Click the visible <label> using a real Playwright click (not DOM .click())
+  //    so the page registers a genuine user gesture.
+  try {
+    const label = page.locator(`label[for="${cbId}"]`).first();
+    await label.scrollIntoViewIfNeeded().catch(() => {});
+    await label.click({ force: true, timeout: 3000 });
+  } catch (e) {
+    log('Label click failed, falling back to DOM:', e.message);
+  }
+
+  // 3) Verify; if still not checked, force the underlying state via DOM
+  const ok = await page.evaluate(id => {
+    const cb = document.getElementById(id);
+    if (!cb) return false;
     if (!cb.checked) {
       cb.checked = true;
+      cb.dispatchEvent(new Event('click',  { bubbles: true }));
       cb.dispatchEvent(new Event('change', { bubbles: true }));
     }
+    return cb.checked;
+  }, cbId).catch(() => false);
 
-    return { ok: cb.checked, id: cb.id, name: cb.name, hadLabel: !!label };
-  }).catch(e => ({ ok: false, reason: e.message }));
-
-  if (result.ok) {
-    log(`Terms accepted (id="${result.id}" name="${result.name}" via ${result.hadLabel ? 'label' : 'direct'})`);
-  } else {
-    log('WARNING: terms checkbox not ticked –', result.reason || 'unknown');
-  }
+  log(ok ? `Terms accepted (#${cbId}).` : `WARNING: terms #${cbId} still unchecked.`);
 }
 
 // ─── step 8: next / confirm ──────────────────────────────────────────────────
