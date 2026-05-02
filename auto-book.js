@@ -148,12 +148,32 @@ async function firstVisible(page, selectors) {
   return null;
 }
 
+function formatDuration(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 async function waitUntilOpen(iso, leadMs = 1500) {
   if (!iso) return;
-  const gap = new Date(iso).getTime() - leadMs - Date.now();
-  if (gap > 0) {
-    log(`Sleeping ${(gap / 1000).toFixed(1)}s until just before ticket open...`);
-    await wait(gap);
+  const targetMs = new Date(iso).getTime() - leadMs;
+  const gap      = targetMs - Date.now();
+  if (gap <= 0) return;
+
+  const target = new Date(targetMs);
+  const bkk    = new Date(targetMs + 7 * 3600 * 1000);
+  log(`Ticket opens in ${formatDuration(gap)} (target: ${target.toISOString()} / BKK ${bkk.toISOString().replace('T', ' ').slice(0, 19)})`);
+
+  // Periodic countdown every 30 s while waiting
+  while (Date.now() < targetMs) {
+    const remain = targetMs - Date.now();
+    if (remain <= 30000) { await wait(remain); break; }
+    log(`  ...${formatDuration(remain)} remaining`);
+    await wait(Math.min(30000, remain));
   }
 }
 
