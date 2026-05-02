@@ -23,6 +23,16 @@ if (!fs.existsSync(CONFIG_PATH)) {
 }
 const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
 
+// Re-read just the live-tunable parts of config.json from disk.
+// Lets you edit maxRow / maxSeatNum / preferredZones / ticketCount /
+// pickupMethod / agreeTerms while the bot is running — no restart needed.
+function reloadBooking() {
+  try {
+    const fresh = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+    if (fresh && fresh.booking) Object.assign(cfg.booking, fresh.booking);
+  } catch { /* ignore parse errors mid-edit */ }
+}
+
 const HEADED      = process.env.HEADED === '1';
 const NAV_TIMEOUT = cfg.timing?.navTimeoutMs    ?? 30000;
 const POLL_MS     = cfg.timing?.pollIntervalMs  ?? 500;
@@ -519,6 +529,7 @@ async function handleTicketSelection(page, count) {
 
   while (picked < count && totalTries < MAX_TRIES) {
     totalTries++;
+    reloadBooking(); // pick up any live edits to maxRow / maxSeatNum
 
     const handles = await page.locator(AVAIL_SEL).all();
     if (handles.length === 0) {
@@ -932,7 +943,6 @@ async function runForAccount(creds, idx, total) {
       // accounts running in parallel almost never race for the same zone.
       // Additionally, the first pass is offset by the account index so two
       // accounts deterministically start on different zones (no collision).
-      const preferredZones = [...cfg.booking.preferredZones];
       let chosenZone = null;
       let zonePass   = 0;
 
@@ -942,8 +952,9 @@ async function runForAccount(creds, idx, total) {
         // ── Find a zone that has seats ──────────────────────────────────────
         while (!chosenZone) {
           zonePass++;
+          reloadBooking(); // pick up any live edits to preferredZones
 
-          const shuffled = [...preferredZones];
+          const shuffled = [...cfg.booking.preferredZones];
           for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
