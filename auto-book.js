@@ -547,13 +547,25 @@ async function handleTicketSelection(page, count) {
       throw new Error('All seats are now taken – OOS. See debug-seats.png');
     }
 
-    // Sort front-row first: smallest Y → smallest X
+    // Sort by seat id: row letter ASC (A=front, M=back), then seat number ASC.
+    // Seat ids look like "A1", "F17", "H13", "AA5" → split letters from digits.
+    // Y-coordinate is kept only as a tiebreaker for ids that don't parse.
     const seatData = await Promise.all(handles.map(async h => {
       const box     = await h.boundingBox().catch(() => null);
-      const forAttr = await h.getAttribute('for').catch(() => '');
-      return { handle: h, y: box?.y ?? 9999, x: box?.x ?? 9999, forAttr };
+      const forAttr = (await h.getAttribute('for').catch(() => '')) || '';
+      const m       = forAttr.match(/^([A-Za-z]+)(\d+)$/);
+      const row     = m ? m[1].toUpperCase() : 'ZZ';
+      const num     = m ? parseInt(m[2], 10) : 9999;
+      // Pad row to fixed width so "B" < "AA" doesn't break (rare but safe)
+      const rowKey  = row.length.toString().padStart(2, '0') + row;
+      return { handle: h, y: box?.y ?? 9999, x: box?.x ?? 9999, forAttr, rowKey, num };
     }));
-    seatData.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+    seatData.sort((a, b) => {
+      if (a.rowKey !== b.rowKey) return a.rowKey < b.rowKey ? -1 : 1; // front row first
+      if (a.num    !== b.num)    return a.num - b.num;                // smallest seat # first
+      if (a.y      !== b.y)      return a.y - b.y;                    // tiebreaker
+      return a.x - b.x;
+    });
 
     const seat = seatData[0];
 
@@ -574,9 +586,9 @@ async function handleTicketSelection(page, count) {
 
       if (ok) {
         picked++;
-        log(`  ✓ Seat ${picked}/${count} confirmed (id="${seat.forAttr}", y≈${Math.round(seat.y)}).`);
+        log(`  ✓ Seat ${picked}/${count} confirmed: row ${seat.rowKey.slice(2)} #${seat.num} (id="${seat.forAttr}").`);
       } else {
-        log(`  ✗ Seat id="${seat.forAttr}" was taken – retrying next seat.`);
+        log(`  ✗ Seat id="${seat.forAttr}" (row ${seat.rowKey.slice(2)} #${seat.num}) taken – next.`);
       }
     } catch (e) {
       log(`  Seat click error: ${e.message} – retrying.`);
