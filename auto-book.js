@@ -253,35 +253,49 @@ async function login(page) {
 async function gotoBookingStep(page) {
   log('Going to event step page:', cfg.eventUrl);
 
+  // Phrases that indicate the booking has NOT started yet (alert dialogs / banners).
+  // These are very specific so we don't match "ราคายังไม่รวม" etc on the seat map.
   const NOT_OPEN_PATTERNS = [
-    /ยังไม่เปิด/i, /not.*open/i, /เปิดจำหน่าย/i,
-    /ticket.*will.*go.*on.*sale/i, /coming.*soon/i, /sold.*out/i
+    /ยังไม่เปิดจำหน่าย/i,
+    /ticket.*will.*go.*on.*sale/i,
+    /ticket.*not.*yet.*on.*sale/i,
+    /coming.*soon/i
   ];
 
-  const MAX_RETRIES = 600;   // up to 60s of retries at 100ms each
-  let attempt = 0;
+  // Auto-dismiss any "not yet open" JS alert that imethai shows pre-launch.
+  page.on('dialog', async d => { log('Dialog:', d.message()); await d.dismiss().catch(() => {}); });
 
-  while (attempt < MAX_RETRIES) {
-    attempt++;
-    await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-    await solveCaptchas(page);
+  const MAX_RETRIES = 1200;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+    } catch (e) { /* retry */ }
+    await solveCaptchas(page).catch(() => {});
 
-    const bodyText = await page.evaluate(() => document.body?.innerText ?? '');
-    const notOpen  = NOT_OPEN_PATTERNS.some(re => re.test(bodyText));
+    // POSITIVE detection: seat map is present if we see a <map>/area, an <svg>
+    // with zone-like elements, or any of the known zone labels in the DOM.
+    const ready = await page.evaluate(() => {
+      const html = document.documentElement.innerHTML;
+      const hasMap   = !!document.querySelector('map area, area[href], svg a, svg [id]');
+      const hasZones = /\b(STANDING|FOH|STAGE|LEVEL\s*2)\b/i.test(html)
+                    || /\b(B1|B2|M1|M2|M3|M4|M5|L2|L3|L4|L5|L6|L7|L8|R2|R3|R4|R5|R6|R7|R8)\b/.test(html);
+      return hasMap || hasZones;
+    }).catch(() => false);
 
-    if (!notOpen) {
+    if (ready) {
       log(`Booking page loaded (attempt ${attempt}).`);
       await page.waitForTimeout(200);
       return;
     }
 
+    const bodyText = await page.evaluate(() => document.body?.innerText ?? '').catch(() => '');
+    const notOpen  = NOT_OPEN_PATTERNS.some(re => re.test(bodyText));
     if (attempt === 1 || attempt % 20 === 0) {
-      log(`Page not open yet (attempt ${attempt}) – retrying every ${RETRY_MS}ms...`);
+      log(`Waiting for seat map${notOpen ? ' (not-open banner present)' : ''} – attempt ${attempt}`);
     }
     await wait(RETRY_MS);
   }
 
-  // Fall through anyway and let the next steps decide
   log('Max retries reached – proceeding anyway.');
 }
 
@@ -306,30 +320,71 @@ async function selectShowRound(page) {
 // with text labels, or <g> groups with titles. We try every plausible selector.
 
 function zoneSelectors(zone) {
-  return [
-    // SVG text node containing exactly the zone name
-    `svg text:has-text("${zone}")`,
-    // Named group / path / polygon
-    `g[id="${zone}"]`,          `g[id*="${zone}"]`,
-    `g[data-zone="${zone}"]`,   `g[title="${zone}"]`,
-    `path[id="${zone}"]`,       `path[data-zone="${zone}"]`,
-    `polygon[id="${zone}"]`,    `polygon[data-zone="${zone}"]`,
-    // Anchor wrapping zone shape
-    `a[title="${zone}"]`,       `a[href*="${zone}"]`,
-    // Image-map
-    `area[alt="${zone}"]`,      `area[title="${zone}"]`,
-    // Div / table / generic
-    `[data-section="${zone}"]`, `[data-zone="${zone}"]`,
-    `[data-name="${zone}"]`,    `[id="${zone}"]`,
-    `td:has-text("${zone}")`,
-    // Exact text match anywhere (last resort)
-    `:text-is("${zone}")`
+  // Escape for use inside CSS attribute selectors
+  const z = zone.replace(/"/g, '\\"');
+  // Image-map area variants: imethai often uses href like "?zone=B1" or onclick="goto('B1')"
+  const hrefVariants = [
+    `area[href*="=${z}"]`,
+    `area[href*="/${z}"]`,
+    `area[href*="${z}.php"]`,
+    `area[href*="zone=${z}"]`,
+    `area[href*="seat=${z}"]`,
+    `area[onclick*="'${z}'"]`,
+    `area[onclick*="\\"${z}\\""]`
   ];
+  return [
+    // Image-map (most likely on imethai)
+    `area[alt="${z}"]`,
+    `area[title="${z}"]`,
+    `area[name="${z}"]`,
+    `area[data-zone="${z}"]`,
+    ...hrefVariants,
+    // Anchor / link
+    `a[title="${z}"]`,
+    `a[href*="zone=${z}"]`,
+    `a[href*="=${z}"]`,
+    `a[onclick*="'${z}'"]`,
+    // SVG
+    `svg [id="${z}"]`,
+    `svg [id*="${z}"]`,
+    `svg [data-zone="${z}"]`,
+    `svg text:has-text("${z}")`,
+    `g[id="${z}"]`,
+    `path[id="${z}"]`,
+    `polygon[id="${z}"]`,
+    // Generic data-* / id
+    `[data-section="${z}"]`,
+    `[data-zone="${z}"]`,
+    `[data-name="${z}"]`,
+    `[id="${z}"]`,
+    // Table / div fallback
+    `td:has-text("${z}")`,
+    `:text-is("${z}")`
+  ];
+}
+
+async function dumpZoneCandidates(page) {
+  const found = await page.evaluate(() => {
+    const out = [];
+    document.querySelectorAll('area, svg a, svg [id], a[href]').forEach(el => {
+      out.push({
+        tag:    el.tagName.toLowerCase(),
+        alt:    el.getAttribute('alt'),
+        title:  el.getAttribute('title'),
+        href:   el.getAttribute('href'),
+        id:     el.id || null,
+        cls:    el.getAttribute('class')
+      });
+    });
+    return out.slice(0, 60);
+  }).catch(() => []);
+  log('Zone candidates on page:', JSON.stringify(found, null, 2));
 }
 
 async function selectZone(page, preferredZones) {
   log('Waiting for seat/zone map...');
   await page.waitForTimeout(500);
+  await dumpZoneCandidates(page);
 
   const MAX_ZONE_RETRIES = 100;   // 100 × 100ms = 10s max wait for map to appear
 
