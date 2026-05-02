@@ -216,34 +216,11 @@ async function login(page) {
     submitBtn.click()
   ]);
 
-  // Confirm login succeeded — wait up to 10s, retry every 100ms
-  let loggedIn = null;
-  for (let i = 0; i < 100; i++) {
-    loggedIn = await firstVisible(page, [
-      'a:has-text("ออกจากระบบ")', 'a:has-text("Logout")', 'a:has-text("Sign out")',
-      'a[href*="logout"]',
-      '[class*="account"]', '[class*="myaccount"]'
-    ]);
-    if (loggedIn) break;
-
-    // Also detect by URL change away from the login page
-    if (!page.url().includes('myaccount.php') && !page.url().includes('login')) {
-      loggedIn = true; break;
-    }
-    await wait(100);
-  }
-
-  if (loggedIn) {
-    log('========================================');
-    log('  ✓ LOGIN SUCCESS — logged in as ' + cfg.credentials.username);
-    log('========================================');
-  } else {
-    log('========================================');
-    log('  ✗ LOGIN FAILED — check debug-login.png');
-    log('========================================');
-    await page.screenshot({ path: 'debug-login.png', fullPage: true });
-    throw new Error('Login appears to have failed');
-  }
+  // Wait briefly for any cookies / redirects to settle. The real login check
+  // happens on step.php (the inline form there is the source of truth).
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await wait(300);
+  log('myaccount.php submitted (real verification happens on step.php)');
 }
 
 // ─── step 2: navigate to buy-ticket step ────────────────────────────────────
@@ -253,8 +230,7 @@ async function login(page) {
 async function gotoBookingStep(page) {
   log('Going to event step page:', cfg.eventUrl);
 
-  // Auto-dismiss the imethai "ticket will go on sale" alert when it pops up
-  // pre-launch. After dismissal the site usually redirects to index page.
+  // Auto-dismiss any pre-launch JS alerts that might appear.
   page.on('dialog', async d => {
     log('JS dialog detected:', d.message().slice(0, 120));
     await d.accept().catch(() => d.dismiss().catch(() => {}));
@@ -266,29 +242,87 @@ async function gotoBookingStep(page) {
       await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
     } catch (e) { /* retry */ }
     await solveCaptchas(page).catch(() => {});
-    await wait(150); // let any post-load JS alerts fire
+    await wait(150);
 
     const finalUrl = page.url();
-    const onStepPage = /step\.php/i.test(finalUrl);
-
-    if (onStepPage) {
-      log(`Booking page loaded (attempt ${attempt}). URL: ${finalUrl}`);
-      // Save full HTML for debugging the real DOM structure
-      try {
-        const html = await page.content();
-        fs.writeFileSync(path.join(__dirname, 'debug-page.html'), html);
-        log('Saved debug-page.html (' + html.length + ' bytes)');
-      } catch {}
-      return;
+    if (!/step\.php/i.test(finalUrl)) {
+      if (attempt === 1 || attempt % 10 === 0) {
+        log(`Redirected to ${finalUrl} – not on step.php yet (attempt ${attempt})`);
+      }
+      await wait(RETRY_MS);
+      continue;
     }
 
-    if (attempt === 1 || attempt % 10 === 0) {
-      log(`Redirected to ${finalUrl} – tickets likely not open yet (attempt ${attempt})`);
+    // We're on step.php. Check whether it shows the inline login form
+    // (which means we are NOT logged in even if myaccount.php login looked OK).
+    const needsLogin = await page.evaluate(() => {
+      return !!document.querySelector('input[type="password"]')
+          && /please.*login|กรุณาเข้าสู่ระบบ/i.test(document.body.innerText || '');
+    }).catch(() => false);
+
+    if (needsLogin) {
+      log('step.php is showing the inline login form. Logging in here...');
+      const ok = await loginInline(page);
+      if (!ok) {
+        await page.screenshot({ path: 'debug-step-login.png', fullPage: true });
+        throw new Error('Inline login on step.php failed – see debug-step-login.png');
+      }
+      // After inline login success, navigate again to refresh
+      await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+      await wait(200);
     }
-    await wait(RETRY_MS);
+
+    log(`Booking page loaded (attempt ${attempt}). URL: ${page.url()}`);
+    try {
+      const html = await page.content();
+      fs.writeFileSync(path.join(__dirname, 'debug-page.html'), html);
+      log(`Saved debug-page.html (${html.length} bytes)`);
+    } catch {}
+    return;
   }
 
   log('Max retries reached – proceeding anyway.');
+}
+
+// Inline login form on step.php (Username / Password / LOGIN button).
+async function loginInline(page) {
+  const userField = await firstVisible(page, [
+    'input[name="username"]', 'input[name="user_login"]', 'input[name="user"]',
+    'input[name="email"]',    'input[type="text"]'
+  ]);
+  const passField = await firstVisible(page, ['input[type="password"]']);
+  if (!userField || !passField) return false;
+
+  await userField.fill('');
+  await userField.fill(cfg.credentials.username);
+  await passField.fill('');
+  await passField.fill(cfg.credentials.password);
+
+  const submitBtn = await firstVisible(page, [
+    'button:has-text("LOGIN")', 'button:has-text("Login")',
+    'input[type="submit"][value*="LOGIN" i]',
+    'input[type="submit"]', 'button[type="submit"]'
+  ]);
+  if (!submitBtn) return false;
+
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {}),
+    submitBtn.click()
+  ]);
+
+  // After login the inline form should be gone
+  const stillNeedsLogin = await page.evaluate(() => {
+    return !!document.querySelector('input[type="password"]')
+        && /please.*login|กรุณาเข้าสู่ระบบ/i.test(document.body.innerText || '');
+  }).catch(() => false);
+
+  if (!stillNeedsLogin) {
+    log('========================================');
+    log(`  ✓ LOGIN SUCCESS (step.php) — ${cfg.credentials.username}`);
+    log('========================================');
+    return true;
+  }
+  return false;
 }
 
 // ─── step 3: select show round (if multiple shown) ───────────────────────────
