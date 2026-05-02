@@ -4,13 +4,11 @@
 // Setup:
 //   1) cp config.example.json config.json  — fill in credentials, zones, capsolver key
 //   2) npm install && npm run install:browsers
-//   3) npm run book:headed    ← always start here so you can see what's happening
-//      npm run book           ← headless once confirmed working
+//   3) node auto-book.js  (headless by default; HEADED=1 node auto-book.js for visible)
 //
 // Zone keywords: put your preferred zones in order, e.g. ["A", "B1", "B2", "M3"]
-// The script tries each in order and stops at the first available one.
-// Standing zones → auto-detects quantity input and sets ticketCount.
-// Seating zones  → clicks individual available seat cells.
+// Each zone is tried in order; OOS zones are skipped automatically.
+// Standing zones → sets quantity dropdown. Seating zones → clicks seats front-row first.
 
 const fs    = require('fs');
 const path  = require('path');
@@ -30,8 +28,8 @@ const NAV_TIMEOUT = cfg.timing?.navTimeoutMs    ?? 30000;
 const POLL_MS     = cfg.timing?.pollIntervalMs  ?? 500;
 const RETRY_MS    = cfg.timing?.retryDelayMs    ?? 100;
 
-// Per-account context (creds + log tag) stored via AsyncLocalStorage so all
-// helpers below transparently use the right account when running in parallel.
+// Per-account context stored via AsyncLocalStorage so helpers use the right
+// account credentials and log tag when running multiple accounts in parallel.
 const accountStore = new AsyncLocalStorage();
 function ctx()      { return accountStore.getStore() || { creds: cfg.credentials, tag: '' }; }
 function getCreds() { return ctx().creds; }
@@ -99,8 +97,8 @@ async function capsolverSolve(taskPayload, timeoutMs = 120000) {
   const created = await capsolverPost('createTask', { clientKey: apiKey, task: taskPayload });
   if (created.errorId) throw new Error(`CapSolver createTask error: ${created.errorDescription}`);
 
-  const taskId  = created.taskId;
-  const start   = Date.now();
+  const taskId = created.taskId;
+  const start  = Date.now();
   while (Date.now() - start < timeoutMs) {
     await wait(POLL_MS);
     const result = await capsolverPost('getTaskResult', { clientKey: apiKey, taskId });
@@ -110,15 +108,12 @@ async function capsolverSolve(taskPayload, timeoutMs = 120000) {
   throw new Error('CapSolver timed out');
 }
 
-// Detects and solves Cloudflare Turnstile on the current page.
 async function bypassCloudflare(page) {
   const cfFrame = page.frameLocator('iframe[src*="challenges.cloudflare.com"]').first();
   const hasCF   = await cfFrame.locator('body').count().catch(() => 0);
   if (!hasCF) return;
 
   log('Cloudflare Turnstile detected – asking CapSolver...');
-
-  // Extract sitekey from page source
   const siteKey = await page.evaluate(() => {
     const el = document.querySelector('[data-sitekey]');
     if (el) return el.dataset.sitekey;
@@ -129,25 +124,20 @@ async function bypassCloudflare(page) {
 
   log('Sitekey:', siteKey);
   const solution = await capsolverSolve({
-    type:    'AntiTurnstileTaskProxyLess',
+    type:       'AntiTurnstileTaskProxyLess',
     websiteURL: page.url(),
     websiteKey: siteKey
   });
-
-  // Inject the token into the hidden field Cloudflare reads
   await page.evaluate(token => {
     let el = document.querySelector('[name="cf-turnstile-response"]');
     if (!el) { el = document.createElement('input'); el.name = 'cf-turnstile-response'; document.body.appendChild(el); }
     el.value = token;
-    // Also try the callback if available
     if (typeof turnstile !== 'undefined') turnstile.getResponse = () => token;
   }, solution.token);
-
   log('Cloudflare token injected.');
   await page.waitForTimeout(500);
 }
 
-// Detects and solves hCaptcha on the current page.
 async function bypassHcaptcha(page) {
   const siteKey = await page.evaluate(() => {
     const el = document.querySelector('.h-captcha,[data-hcaptcha-widget-id]');
@@ -167,7 +157,6 @@ async function bypassHcaptcha(page) {
   log('hCaptcha token injected.');
 }
 
-// Master captcha handler – called before any form submit.
 async function solveCaptchas(page) {
   await bypassCloudflare(page).catch(e => log('CF bypass skipped:', e.message));
   await bypassHcaptcha(page).catch(e => log('hCaptcha bypass skipped:', e.message));
@@ -205,7 +194,6 @@ async function waitUntilOpen(iso, leadMs = 1500) {
   const bkk    = new Date(targetMs + 7 * 3600 * 1000);
   log(`Ticket opens in ${formatDuration(gap)} (target: ${target.toISOString()} / BKK ${bkk.toISOString().replace('T', ' ').slice(0, 19)})`);
 
-  // Periodic countdown every 30 s while waiting
   while (Date.now() < targetMs) {
     const remain = targetMs - Date.now();
     if (remain <= 30000) { await wait(remain); break; }
@@ -252,24 +240,18 @@ async function login(page) {
     page.waitForLoadState('networkidle').catch(() => {}),
     submitBtn.click()
   ]);
-
-  // Wait briefly for any cookies / redirects to settle. The real login check
-  // happens on step.php (the inline form there is the source of truth).
   await page.waitForLoadState('networkidle').catch(() => {});
   await wait(300);
   log('myaccount.php submitted (real verification happens on step.php)');
 }
 
-// ─── step 2: navigate to buy-ticket step ────────────────────────────────────
-// Retries every retryDelayMs (100ms) until the seat map loads or a
-// "not yet open" message disappears.
+// ─── step 2: navigate to booking step ───────────────────────────────────────
 
 async function gotoBookingStep(page) {
   log('Going to event step page:', cfg.eventUrl);
 
-  // Auto-dismiss any pre-launch JS alerts that might appear.
   page.on('dialog', async d => {
-    log('JS dialog detected:', d.message().slice(0, 120));
+    log('JS dialog:', d.message().slice(0, 120));
     await d.accept().catch(() => d.dismiss().catch(() => {}));
   });
 
@@ -277,7 +259,7 @@ async function gotoBookingStep(page) {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-    } catch (e) { /* retry */ }
+    } catch { /* retry */ }
     await solveCaptchas(page).catch(() => {});
     await wait(150);
 
@@ -290,21 +272,18 @@ async function gotoBookingStep(page) {
       continue;
     }
 
-    // We're on step.php. Check whether it shows the inline login form
-    // (which means we are NOT logged in even if myaccount.php login looked OK).
     const needsLogin = await page.evaluate(() => {
       return !!document.querySelector('input[type="password"]')
           && /please.*login|กรุณาเข้าสู่ระบบ/i.test(document.body.innerText || '');
     }).catch(() => false);
 
     if (needsLogin) {
-      log('step.php is showing the inline login form. Logging in here...');
+      log('step.php showing inline login form – logging in here...');
       const ok = await loginInline(page);
       if (!ok) {
         await page.screenshot({ path: 'debug-step-login.png', fullPage: true });
         throw new Error('Inline login on step.php failed – see debug-step-login.png');
       }
-      // After inline login success, navigate again to refresh
       await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
       await wait(200);
     }
@@ -321,7 +300,6 @@ async function gotoBookingStep(page) {
   log('Max retries reached – proceeding anyway.');
 }
 
-// Inline login form on step.php (Username / Password / LOGIN button).
 async function loginInline(page) {
   const userField = await firstVisible(page, [
     'input[name="username"]', 'input[name="user_login"]', 'input[name="user"]',
@@ -347,7 +325,6 @@ async function loginInline(page) {
     submitBtn.click()
   ]);
 
-  // After login the inline form should be gone
   const stillNeedsLogin = await page.evaluate(() => {
     return !!document.querySelector('input[type="password"]')
         && /please.*login|กรุณาเข้าสู่ระบบ/i.test(document.body.innerText || '');
@@ -362,7 +339,7 @@ async function loginInline(page) {
   return false;
 }
 
-// ─── step 3: select show round (if multiple shown) ───────────────────────────
+// ─── step 3: select show round ───────────────────────────────────────────────
 
 async function selectShowRound(page) {
   const round = cfg.booking.showRound;
@@ -378,161 +355,115 @@ async function selectShowRound(page) {
   }
 }
 
-// ─── step 4: zone / section selection ───────────────────────────────────────
-// imethai uses an SVG seat map. Zones are typically <a> tags wrapping SVG shapes
-// with text labels, or <g> groups with titles. We try every plausible selector.
-
-function zoneSelectors(zone) {
-  // Escape for use inside CSS attribute selectors
-  const z = zone.replace(/"/g, '\\"');
-  // Image-map area variants: imethai often uses href like "?zone=B1" or onclick="goto('B1')"
-  const hrefVariants = [
-    `area[href*="=${z}"]`,
-    `area[href*="/${z}"]`,
-    `area[href*="${z}.php"]`,
-    `area[href*="zone=${z}"]`,
-    `area[href*="seat=${z}"]`,
-    `area[onclick*="'${z}'"]`,
-    `area[onclick*="\\"${z}\\""]`
-  ];
-  return [
-    // Image-map (most likely on imethai)
-    `area[alt="${z}"]`,
-    `area[title="${z}"]`,
-    `area[name="${z}"]`,
-    `area[data-zone="${z}"]`,
-    ...hrefVariants,
-    // Anchor / link
-    `a[title="${z}"]`,
-    `a[href*="zone=${z}"]`,
-    `a[href*="=${z}"]`,
-    `a[onclick*="'${z}'"]`,
-    // SVG
-    `svg [id="${z}"]`,
-    `svg [id*="${z}"]`,
-    `svg [data-zone="${z}"]`,
-    `svg text:has-text("${z}")`,
-    `g[id="${z}"]`,
-    `path[id="${z}"]`,
-    `polygon[id="${z}"]`,
-    // Generic data-* / id
-    `[data-section="${z}"]`,
-    `[data-zone="${z}"]`,
-    `[data-name="${z}"]`,
-    `[id="${z}"]`,
-    // Table / div fallback
-    `td:has-text("${z}")`,
-    `:text-is("${z}")`
-  ];
-}
-
-async function dumpZoneCandidates(page) {
-  const found = await page.evaluate(() => {
-    const out = [];
-    const sel = 'area, a[href], a[onclick], [onclick], svg a, svg [id], form, button';
-    document.querySelectorAll(sel).forEach(el => {
-      const text = (el.innerText || el.textContent || '').trim().slice(0, 50);
-      out.push({
-        tag:     el.tagName.toLowerCase(),
-        alt:     el.getAttribute('alt'),
-        title:   el.getAttribute('title'),
-        href:    el.getAttribute('href'),
-        onclick: el.getAttribute('onclick'),
-        coords:  el.getAttribute('coords'),
-        shape:   el.getAttribute('shape'),
-        id:      el.id || null,
-        name:    el.getAttribute('name'),
-        cls:     el.getAttribute('class'),
-        text:    text || undefined
-      });
+// ─── step 4: zone selection ──────────────────────────────────────────────────
+// Returns available zone names from the zoneplanForm on the current page.
+// Returns null if the form isn't there yet.
+async function getAvailableZones(page) {
+  return page.evaluate(() => {
+    if (!document.forms['zoneplanForm']) return null;
+    const zones = new Set();
+    document.querySelectorAll('area[onclick]').forEach(a => {
+      const m = a.getAttribute('onclick').match(/zone\.value\s*=\s*['"]([^'"]+)['"]/i);
+      if (m) zones.add(m[1]);
     });
-    return out;
-  }).catch(() => []);
-
-  try {
-    fs.writeFileSync(path.join(__dirname, 'debug-zones.json'), JSON.stringify(found, null, 2));
-    log(`Saved debug-zones.json (${found.length} elements)`);
-  } catch {}
-
-  // Also print the most interesting ones: <area> tags and elements with onclick
-  const interesting = found.filter(e => e.tag === 'area' || e.onclick);
-  log(`Interesting clickable elements (${interesting.length}):`);
-  interesting.slice(0, 40).forEach(e => log('  ' + JSON.stringify(e)));
+    return Array.from(zones);
+  }).catch(() => null);
 }
 
-async function selectZone(page, preferredZones) {
-  log('Waiting for zoneplanForm to appear...');
-  await page.waitForTimeout(300);
-
-  const MAX_ZONE_RETRIES = 100; // 100 × 100ms = 10s max
-
-  for (let attempt = 1; attempt <= MAX_ZONE_RETRIES; attempt++) {
-    // Check which zones are actually available on this page (from <area> onclicks)
-    const availableZones = await page.evaluate(() => {
-      if (!document.forms['zoneplanForm']) return null;
-      const zones = new Set();
-      document.querySelectorAll('area[onclick]').forEach(a => {
-        const m = a.getAttribute('onclick').match(/zone\.value\s*=\s*['"]([^'"]+)['"]/i);
-        if (m) zones.add(m[1]);
-      });
-      return Array.from(zones);
-    }).catch(() => null);
-
-    if (availableZones === null) {
-      if (attempt % 10 === 0) log(`zoneplanForm not yet on page (attempt ${attempt})...`);
-      await wait(RETRY_MS);
-      continue;
+// Waits for zoneplanForm and returns the list of available zones.
+async function waitForZoneMap(page) {
+  const MAX = 100;
+  for (let i = 1; i <= MAX; i++) {
+    const zones = await getAvailableZones(page);
+    if (zones !== null) {
+      log(`Zone map ready. Available zones: [${zones.join(', ')}]`);
+      return zones;
     }
+    if (i % 10 === 0) log(`Waiting for zone map (attempt ${i})...`);
+    await wait(RETRY_MS);
+  }
+  await page.screenshot({ path: 'debug-zone.png', fullPage: true });
+  throw new Error('Zone map never appeared – see debug-zone.png');
+}
 
-    log(`Available zones on page: [${availableZones.join(', ')}]`);
+// Submits zoneplanForm for a specific zone. Returns false if zone not on page.
+async function submitZone(page, zone) {
+  const zones = await getAvailableZones(page);
+  if (!zones || !zones.includes(zone)) return false;
 
-    // Find the first preferred zone that exists on the page
-    for (const zone of preferredZones) {
-      if (!availableZones.includes(zone)) {
-        log(`  "${zone}" not present – trying next preferred zone.`);
-        continue;
-      }
+  log(`Submitting zoneplanForm with zone="${zone}"`);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {}),
+    page.evaluate(z => {
+      document.forms['zoneplanForm'].zone.value = z;
+      document.forms['zoneplanForm'].submit();
+    }, zone)
+  ]);
+  log(`✓ Zone "${zone}" submitted.`);
+  return true;
+}
 
-      log(`Submitting zoneplanForm with zone="${zone}"`);
-      try {
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {}),
-          page.evaluate(z => {
-            document.forms['zoneplanForm'].zone.value = z;
-            document.forms['zoneplanForm'].submit();
-          }, zone)
-        ]);
-        log(`✓ Zone "${zone}" submitted.`);
-        return zone;
-      } catch (e) {
-        log(`Submit failed for "${zone}": ${e.message}`);
-      }
+// ─── step 5: OOS detection ───────────────────────────────────────────────────
+// Returns true if the current ticket-selection page has no bookable items.
+
+async function isOOS(page) {
+  await page.waitForTimeout(600);
+
+  // Check for explicit OOS text
+  const textOOS = await page.evaluate(() => {
+    const t = (document.body?.innerText || '').toLowerCase();
+    return /sold.?out|หมดแล้ว|ไม่มีที่นั่ง|no.*seat|out.of.stock/.test(t);
+  }).catch(() => false);
+  if (textOOS) return true;
+
+  // For standing zones: <select> present but no valid qty options
+  const selEl = await page.locator('select').first();
+  if (await selEl.count().catch(() => 0)) {
+    const opts = await selEl.evaluate(el =>
+      Array.from(el.options).map(o => o.value.trim()).filter(v => v && v !== '0')
+    ).catch(() => []);
+    if (opts.length === 0) {
+      log('Standing select has no valid options – OOS.');
+      return true;
     }
-
-    // None of the preferred zones were on this page – stop and report
-    await page.screenshot({ path: 'debug-zone.png', fullPage: true });
-    throw new Error(
-      `None of [${preferredZones.join(', ')}] are available. ` +
-      `Page only has [${availableZones.join(', ')}]. See debug-zone.png.`
-    );
+    return false; // has options → not OOS
   }
 
-  await page.screenshot({ path: 'debug-zone.png', fullPage: true });
-  throw new Error('zoneplanForm never appeared – see debug-zone.png');
+  // For seating zones: no available seat elements visible
+  const availSel = [
+    'input[type="checkbox"][name*="seat" i]:not([disabled])',
+    '.seat.available', '.seat:not(.sold):not(.disabled):not(.reserved)',
+    'td.seat:not(.sold):not(.disabled)', 'td.available',
+    '[data-status="available"]',
+    '[class*="seat"]:not([class*="sold"]):not([class*="disabled"])'
+  ].join(', ');
+
+  const seatCount = await page.locator(availSel).count().catch(() => 0);
+
+  // Only call OOS if we're clearly on a seat-map page but no seats found
+  const onSeatPage = await page.evaluate(() =>
+    /seat|ที่นั่ง|zone/i.test(document.body?.innerText || '')
+  ).catch(() => false);
+
+  if (onSeatPage && seatCount === 0) {
+    log('Seat map page has no available seats – OOS.');
+    return true;
+  }
+
+  return false;
 }
 
-// ─── step 5: standing OR seating auto-detection ─────────────────────────────
+// ─── step 6: ticket quantity / seat selection ────────────────────────────────
 
 async function handleTicketSelection(page, count) {
   await page.waitForTimeout(600);
 
-  // ── Standing: look for a quantity input / select ──────────────────────────
-  // imethai uses a <select> on the post-zone page (Amount / จำนวนบัตร).
+  // ── Standing: quantity <select> or <input> ────────────────────────────────
   const qtySelectors = [
-    'select[name*="qty" i]',      'select[name*="quantity" i]',
-    'select[name*="amount" i]',   'select[name*="ticket" i]',
-    'select[id*="qty" i]',        'select[id*="quantity" i]',
-    'select',  // fallback: any <select> on the page
+    'select[name*="qty" i]',    'select[name*="quantity" i]',
+    'select[name*="amount" i]', 'select[name*="ticket" i]',
+    'select[id*="qty" i]',      'select[id*="quantity" i]',
+    'select',
     'input[name*="qty" i][type="number"]',
     'input[name*="quantity" i][type="number"]',
     'input[type="number"]'
@@ -541,10 +472,9 @@ async function handleTicketSelection(page, count) {
 
   if (qtyEl) {
     const tag = await qtyEl.evaluate(el => el.tagName.toLowerCase());
-    log(`Standing mode detected (${tag}) – setting quantity to ${count}`);
+    log(`Standing mode (${tag}) – setting quantity to ${count}`);
 
     if (tag === 'select') {
-      // Read all options so we don't hang waiting for a non-existent value/label.
       const options = await qtyEl.evaluate(el =>
         Array.from(el.options).map(o => ({ value: o.value, text: (o.textContent || '').trim() }))
       ).catch(() => []);
@@ -560,13 +490,12 @@ async function handleTicketSelection(page, count) {
       if (!match) {
         log(`WARNING: no option matches "${want}" – skipping qty change.`);
       } else if (currentValue === match.value) {
-        log(`Quantity already set to ${count} (value="${match.value}").`);
+        log(`Quantity already ${count} (value="${match.value}").`);
       } else {
         try {
           await qtyEl.selectOption({ value: match.value }, { timeout: 3000 });
           log(`Quantity set: value="${match.value}".`);
-        } catch (e) {
-          // Fallback: set directly via DOM
+        } catch {
           await qtyEl.evaluate((el, v) => {
             el.value = v;
             el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -581,8 +510,8 @@ async function handleTicketSelection(page, count) {
     return;
   }
 
-  // ── Seating: click individual available seat cells ─────────────────────────
-  log('Seating mode – picking individual seats...');
+  // ── Seating: click individual seats, front-row first ─────────────────────
+  log('Seating mode – picking seats (front-row first)...');
 
   const availSel = [
     'input[type="checkbox"][name*="seat" i]:not([disabled])',
@@ -593,25 +522,33 @@ async function handleTicketSelection(page, count) {
     '[class*="seat"]:not([class*="sold"]):not([class*="disabled"])'
   ].join(', ');
 
-  // Wait for at least one available seat
   await page.waitForSelector(availSel, { timeout: NAV_TIMEOUT });
 
-  let picked = 0;
-  const MAX_SEAT_RETRIES = 50;
+  // Gather all seats and sort by vertical position (front row = smallest Y)
+  // then by horizontal position (left to right) for a natural order.
+  const seatHandles = await page.locator(availSel).all();
 
-  for (let attempt = 1; attempt <= MAX_SEAT_RETRIES && picked < count; attempt++) {
-    const seats = await page.locator(availSel).all();
-    for (const seat of seats) {
-      if (picked >= count) break;
-      if (!await seat.isVisible().catch(() => false)) continue;
-      try {
-        await seat.click({ timeout: 3000 });
-        picked++;
-        log(`  Seat ${picked}/${count} selected.`);
-        await wait(RETRY_MS);
-      } catch { /* try next */ }
-    }
-    if (picked < count) await wait(RETRY_MS);
+  const seatData = await Promise.all(seatHandles.map(async h => {
+    const box  = await h.boundingBox().catch(() => null);
+    const id   = await h.getAttribute('id').catch(() => '');
+    const cls  = await h.getAttribute('class').catch(() => '');
+    return { handle: h, y: box?.y ?? 9999, x: box?.x ?? 9999, id, cls };
+  }));
+
+  // Sort: topmost Y first (front rows on most layouts), then left to right
+  seatData.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+
+  let picked = 0;
+  for (const seat of seatData) {
+    if (picked >= count) break;
+    if (!await seat.handle.isVisible().catch(() => false)) continue;
+    try {
+      await seat.handle.scrollIntoViewIfNeeded().catch(() => {});
+      await seat.handle.click({ timeout: 3000 });
+      picked++;
+      log(`  Seat ${picked}/${count} clicked (y=${Math.round(seat.y)}, x=${Math.round(seat.x)}, id="${seat.id}").`);
+      await wait(RETRY_MS);
+    } catch { /* try next */ }
   }
 
   if (picked < count) {
@@ -620,12 +557,11 @@ async function handleTicketSelection(page, count) {
   }
 }
 
-// ─── step 6: pickup method ───────────────────────────────────────────────────
+// ─── step 7: pickup method ───────────────────────────────────────────────────
 
 async function choosePickup(page, method) {
   if (!method) return;
 
-  // 1) Find the matching radio's id
   const info = await page.evaluate(m => {
     const wantsSelf = m === 'self';
     const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
@@ -644,7 +580,6 @@ async function choosePickup(page, method) {
 
   if (!info) { log('WARNING: pickup radio not found.'); return; }
 
-  // 2) Real Playwright click on the visible label
   if (info.id) {
     try {
       const label = page.locator(`label[for="${info.id}"]`).first();
@@ -652,8 +587,6 @@ async function choosePickup(page, method) {
       await label.click({ force: true, timeout: 3000 });
     } catch {}
   }
-
-  // 3) Force state via DOM as fallback
   await page.evaluate(id => {
     const r = document.getElementById(id);
     if (r && !r.checked) {
@@ -662,15 +595,14 @@ async function choosePickup(page, method) {
     }
   }, info.id).catch(() => {});
 
-  log(`Pickup selected: name="${info.name}" value="${info.value}" ("${info.text}")`);
+  log(`Pickup selected: "${info.text}"`);
 }
 
-// ─── step 7: accept terms ────────────────────────────────────────────────────
+// ─── step 8: accept terms ────────────────────────────────────────────────────
 
 async function acceptTerms(page) {
   if (!cfg.booking.agreeTerms) return;
 
-  // 1) Find the terms checkbox id (usually "checkboxG1" / name="terms")
   const cbId = await page.evaluate(() => {
     const cb = document.querySelector('input[type="checkbox"][name="terms"]')
             || document.querySelector('#checkboxG1')
@@ -684,8 +616,6 @@ async function acceptTerms(page) {
 
   if (!cbId) { log('WARNING: terms checkbox not found.'); return; }
 
-  // 2) Click the visible <label> using a real Playwright click (not DOM .click())
-  //    so the page registers a genuine user gesture.
   try {
     const label = page.locator(`label[for="${cbId}"]`).first();
     await label.scrollIntoViewIfNeeded().catch(() => {});
@@ -694,7 +624,6 @@ async function acceptTerms(page) {
     log('Label click failed, falling back to DOM:', e.message);
   }
 
-  // 3) Verify; if still not checked, force the underlying state via DOM
   const ok = await page.evaluate(id => {
     const cb = document.getElementById(id);
     if (!cb) return false;
@@ -709,7 +638,7 @@ async function acceptTerms(page) {
   log(ok ? `Terms accepted (#${cbId}).` : `WARNING: terms #${cbId} still unchecked.`);
 }
 
-// ─── step 8: next / confirm ──────────────────────────────────────────────────
+// ─── step 9: continue button ─────────────────────────────────────────────────
 
 async function clickNext(page) {
   const btn = await firstVisible(page, [
@@ -719,9 +648,9 @@ async function clickNext(page) {
     'input[type="submit"][value*="ไปขั้นตอน" i]',
     'button:has-text("CONTINUE")',  'button:has-text("Continue")',
     'button:has-text("ไปขั้นตอนถัดไป")',
-    'a:has-text("CONTINUE")',        'a:has-text("ไปขั้นตอนถัดไป")',
-    'button:has-text("Next")',       'button:has-text("ถัดไป")',
-    'button:has-text("Confirm")',    'button:has-text("ยืนยัน")',
+    'a:has-text("CONTINUE")',       'a:has-text("ไปขั้นตอนถัดไป")',
+    'button:has-text("Next")',      'button:has-text("ถัดไป")',
+    'button:has-text("Confirm")',   'button:has-text("ยืนยัน")',
     'button:has-text("ซื้อบัตร")',
     'input[type="submit"]', 'button[type="submit"]'
   ]);
@@ -736,7 +665,43 @@ async function clickNext(page) {
   }
 }
 
-// ─── step 9: notify webhook with checkout URL ───────────────────────────────
+// ─── step 10: payment popup (headless → headed window) ───────────────────────
+// When the bot is running headless, open a new VISIBLE browser window on the
+// payment/checkout URL so the user can complete payment manually.
+
+async function openHeadedForPayment(context, checkoutUrl) {
+  if (HEADED) return; // already visible
+
+  log('Opening visible browser window for payment...');
+  try {
+    const headedBrowser = await chromium.launch({
+      headless: false,
+      slowMo:   40,
+      args:     ['--disable-blink-features=AutomationControlled']
+    });
+
+    // Transfer session cookies so the payment page loads authenticated
+    const cookies = await context.cookies().catch(() => []);
+    const headedCtx = await headedBrowser.newContext({
+      viewport:  { width: 1366, height: 900 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    });
+    if (cookies.length) await headedCtx.addCookies(cookies);
+
+    const payPage = await headedCtx.newPage();
+    await payPage.goto(checkoutUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
+    log(`Payment window open → ${checkoutUrl}`);
+
+    // Keep the headed browser open for 15 minutes then auto-close
+    await wait(15 * 60 * 1000).catch(() => {});
+    await headedBrowser.close().catch(() => {});
+  } catch (e) {
+    log('Could not open headed payment window:', e.message);
+    log(`Complete payment manually at: ${checkoutUrl}`);
+  }
+}
+
+// ─── step 11: webhook notification ──────────────────────────────────────────
 
 function postWebhook(webhookUrl, payload) {
   return new Promise((resolve, reject) => {
@@ -764,46 +729,76 @@ async function notifyCheckout(page, zone) {
   const webhookUrl = cfg.webhook?.url;
   if (!webhookUrl) { log('No webhook configured – skipping notification.'); return; }
 
-  // Wait for navigation to settle on the checkout/payment page
   await page.waitForLoadState('domcontentloaded').catch(() => {});
   await wait(800);
 
   const checkoutUrl = page.url();
-  const screenshot  = `checkout-${Date.now()}.png`;
-  await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
+  await page.screenshot({ path: `checkout-${Date.now()}.png`, fullPage: true }).catch(() => {});
 
-  // Discord webhook? Format as embed; otherwise send a plain JSON payload.
+  const acc       = getCreds().username;
   const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(webhookUrl);
 
-  const acc = getCreds().username;
+  let payload;
+  if (isDiscord) {
+    payload = {
+      username: 'imethai bot',
+      content:  `🎫 **Ticket secured!**\nAccount: **${acc}**\nZone: **${zone}**\nClick to pay: ${checkoutUrl}`,
+      embeds: [{
+        title:       `Pay now — ${acc}`,
+        url:         checkoutUrl,
+        description: `**Account:** ${acc}\n**Zone:** ${zone}`,
+        color:       0x57F287,
+        timestamp:   new Date().toISOString(),
+        footer:      { text: 'imethai auto-booker' }
+      }]
+    };
+  } else {
+    // Generic format (AYCD Inbox / any other webhook service)
+    payload = {
+      event:       'checkout_ready',
+      status:      'success',
+      account:     acc,
+      username:    acc,
+      zone:        zone,
+      message:     `🎫 Checkout ready | Account: ${acc} | Zone: ${zone} | Pay: ${checkoutUrl}`,
+      checkoutLink: checkoutUrl,
+      checkoutUrl:  checkoutUrl,
+      timestamp:   new Date().toISOString()
+    };
+  }
+
+  try {
+    const r = await postWebhook(webhookUrl, payload);
+    log(`Webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 200)}`);
+    log(`Checkout URL: ${checkoutUrl}`);
+  } catch (e) {
+    log('Webhook failed:', e.message);
+    log(`Complete payment manually at: ${checkoutUrl}`);
+  }
+}
+
+async function notifyFailure(creds, errMsg) {
+  const webhookUrl = cfg.webhook?.url;
+  if (!webhookUrl) return;
+
+  const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(webhookUrl);
   const payload = isDiscord
-    ? {
-        username: 'imethai bot',
-        content:  `🎫 **Ticket secured!**\nAccount: **${acc}**\nZone: **${zone}**\nClick to pay: ${checkoutUrl}`,
-        embeds: [{
-          title:       `Pay now — ${acc}`,
-          url:         checkoutUrl,
-          description: `**Account:** ${acc}\n**Zone:** ${zone}`,
-          color:       0x57F287,
-          timestamp:   new Date().toISOString(),
-          footer:      { text: 'imethai auto-booker' }
-        }]
-      }
+    ? { content: `❌ **${creds.username}** failed: ${errMsg}` }
     : {
-        event:       'checkout_ready',
-        status:      'success',
-        account:     acc,
-        username:    acc,
-        zone:        zone,
-        checkoutUrl: checkoutUrl,
-        timestamp:   new Date().toISOString()
+        event:    'booking_failed',
+        status:   'failure',
+        account:  creds.username,
+        username: creds.username,
+        message:  `❌ Failed | Account: ${creds.username} | Error: ${errMsg}`,
+        error:    errMsg,
+        timestamp: new Date().toISOString()
       };
 
   try {
     const r = await postWebhook(webhookUrl, payload);
-    log(`Webhook delivered (HTTP ${r.status}). Checkout URL: ${checkoutUrl}`);
+    log(`Failure webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 200)}`);
   } catch (e) {
-    log('Webhook failed:', e.message);
+    log('Failure webhook error:', e.message);
   }
 }
 
@@ -837,7 +832,46 @@ async function runForAccount(creds, idx, total) {
       await login(page);
       await gotoBookingStep(page);
       await selectShowRound(page);
-      const chosenZone = await selectZone(page, cfg.booking.preferredZones);
+
+      // ── Zone selection with OOS fallback ────────────────────────────────
+      const preferredZones = cfg.booking.preferredZones;
+      await waitForZoneMap(page);
+
+      let chosenZone = null;
+      for (let zi = 0; zi < preferredZones.length; zi++) {
+        const tryZone = preferredZones[zi];
+
+        // Re-navigate to zone map if this is a retry after OOS
+        if (zi > 0) {
+          log(`Navigating back to zone map for next zone (${zi + 1}/${preferredZones.length})...`);
+          await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+          await solveCaptchas(page).catch(() => {});
+          await wait(300);
+          await waitForZoneMap(page);
+        }
+
+        const submitted = await submitZone(page, tryZone);
+        if (!submitted) {
+          log(`Zone "${tryZone}" not on map – trying next.`);
+          continue;
+        }
+
+        const oos = await isOOS(page);
+        if (oos) {
+          log(`⚠ Seat OOS for zone "${tryZone}" – trying next preferred zone.`);
+          continue;
+        }
+
+        chosenZone = tryZone;
+        break;
+      }
+
+      if (!chosenZone) {
+        throw new Error(
+          `All preferred zones OOS or unavailable: [${preferredZones.join(', ')}]`
+        );
+      }
+
       await handleTicketSelection(page, cfg.booking.ticketCount);
       await choosePickup(page, cfg.booking.pickupMethod);
       await acceptTerms(page);
@@ -846,12 +880,17 @@ async function runForAccount(creds, idx, total) {
 
       log(`✓ SUCCESS – zone "${chosenZone}" booked.`);
       await notifyCheckout(page, chosenZone);
-      log('Complete payment in the browser or via the webhook link.');
+
+      const checkoutUrl = page.url();
+
+      // Open a visible browser window for payment (works even in headless mode)
+      await openHeadedForPayment(context, checkoutUrl);
 
       if (HEADED) {
         log('Browser stays open 15 minutes for payment.');
         await wait(15 * 60 * 1000);
       }
+
       return { ok: true, username: creds.username, zone: chosenZone };
     } catch (err) {
       log('✗ Automation failed:', err.message);
@@ -859,20 +898,14 @@ async function runForAccount(creds, idx, total) {
         path: `debug-final-${creds.username.replace(/[^a-z0-9]/gi, '_')}-${Date.now()}.png`,
         fullPage: true
       }).catch(() => {});
-      // Notify failure too so you know which account didn't make it
-      try {
-        const url = cfg.webhook?.url;
-        if (url) {
-          const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(url);
-          await postWebhook(url, isDiscord
-            ? { content: `❌ **${creds.username}** failed: ${err.message}` }
-            : { event: 'booking_failed', username: creds.username, error: err.message }
-          );
-        }
-      } catch {}
+      await notifyFailure(creds, err.message);
       return { ok: false, username: creds.username, error: err.message };
     } finally {
-      if (!HEADED) await browser.close();
+      if (!HEADED) {
+        // Small delay so the headed payment window (if opened) can take over
+        await wait(2000);
+        await browser.close().catch(() => {});
+      }
     }
   });
 }
