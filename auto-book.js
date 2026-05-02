@@ -43,6 +43,10 @@ const log = (...a) => {
 };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
+// Thrown by handleTicketSelection when the seat filter leaves 0 candidates.
+// The zone loop catches this and retries the next zone instead of crashing.
+class FilterOOSError extends Error {}
+
 // ─── account loader ─────────────────────────────────────────────────────────
 
 function loadAccounts() {
@@ -544,11 +548,13 @@ async function handleTicketSelection(page, count) {
         (!maxRow     || s.rowKey.slice(2) <= maxRow) &&
         (!maxSeatNum || s.num             <= maxSeatNum)
       );
-      if (filtered.length > 0) {
-        pool = filtered;
-      } else {
-        log(`  filter (maxRow=${maxRow} maxSeatNum=${maxSeatNum}) matched 0 – using all seats`);
+      if (filtered.length === 0) {
+        // No seats in the preferred range → skip this zone, try the next one
+        throw new FilterOOSError(
+          `no seats within filter (maxRow=${maxRow ?? '–'} maxSeatNum=${maxSeatNum ?? '–'}) in this zone`
+        );
       }
+      pool = filtered;
     }
 
     pool.sort((a, b) => {
@@ -791,13 +797,32 @@ function buildWebhookPayload(type, { acc, zone, checkoutUrl, errMsg }) {
   if (type === 'discord') return discordEmbed;
 
   if (type === 'aycd') {
-    // AYCD Inbox expects Discord embed format PLUS webhook_id / webhook_token
-    // so it can proxy the notification to your Discord and log it in Inbox.
-    return {
-      webhook_id:    cfg.webhook.discordWebhookId,
-      webhook_token: cfg.webhook.discordWebhookToken,
-      ...discordEmbed
-    };
+    // If Discord credentials are supplied, proxy through AYCD → Discord.
+    // If not, send a plain payload — AYCD Inbox will still log it.
+    if (cfg.webhook.discordWebhookId && cfg.webhook.discordWebhookToken) {
+      return {
+        webhook_id:    cfg.webhook.discordWebhookId,
+        webhook_token: cfg.webhook.discordWebhookToken,
+        ...discordEmbed
+      };
+    }
+    // Plain fallback (AYCD Inbox only, no Discord forwarding)
+    return isSuccess
+      ? {
+          status:       'success',
+          account:      acc,
+          zone:         zone,
+          message:      `Checkout ready | ${acc} | Zone ${zone} | ${checkoutUrl}`,
+          checkoutLink: checkoutUrl,
+          timestamp:    ts
+        }
+      : {
+          status:  'failure',
+          account: acc,
+          message: `Failed | ${acc} | ${errMsg}`,
+          error:   errMsg,
+          timestamp: ts
+        };
   }
 
   // Generic fallback
@@ -911,62 +936,73 @@ async function runForAccount(creds, idx, total) {
       let chosenZone = null;
       let zonePass   = 0;
 
-      while (!chosenZone) {
-        zonePass++;
+      // Outer loop: re-runs zone selection if handleTicketSelection throws
+      // FilterOOSError (no seats match maxRow/maxSeatNum in the chosen zone).
+      while (true) {
+        // ── Find a zone that has seats ──────────────────────────────────────
+        while (!chosenZone) {
+          zonePass++;
 
-        // Fresh Fisher-Yates shuffle per pass per account
-        const shuffled = [...preferredZones];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-
-        // On the first pass, rotate by account index so accounts spread out
-        // across the zone list (account 0 starts at shuffled[0], account 1
-        // starts at shuffled[1], etc.). After the first pass it's pure random.
-        if (zonePass === 1 && total > 1) {
-          const rot = idx % shuffled.length;
-          shuffled.push(...shuffled.splice(0, rot));
-        }
-
-        log(`zone pass #${zonePass}: [${shuffled.join(', ')}]`);
-
-        // Navigate to zone map (always refresh to get latest availability)
-        await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-        await solveCaptchas(page).catch(() => {});
-        await wait(150);
-        await waitForZoneMap(page);
-
-        for (const tryZone of shuffled) {
-          const submitted = await submitZone(page, tryZone);
-          if (!submitted) {
-            log(`  ${tryZone}: not on map`);
-            await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
-            await wait(100);
-            continue;
+          const shuffled = [...preferredZones];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          if (zonePass === 1 && total > 1) {
+            const rot = idx % shuffled.length;
+            shuffled.push(...shuffled.splice(0, rot));
           }
 
-          const oos = await isOOS(page);
-          if (oos) {
-            log(`  ${tryZone}: OOS`);
-            await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
-            await wait(100);
-            await waitForZoneMap(page).catch(() => {});
-            continue;
+          log(`zone pass #${zonePass}: [${shuffled.join(', ')}]`);
+
+          await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+          await solveCaptchas(page).catch(() => {});
+          await wait(150);
+          await waitForZoneMap(page);
+
+          for (const tryZone of shuffled) {
+            const submitted = await submitZone(page, tryZone);
+            if (!submitted) {
+              log(`  ${tryZone}: not on map`);
+              await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
+              await wait(100);
+              continue;
+            }
+
+            const oos = await isOOS(page);
+            if (oos) {
+              log(`  ${tryZone}: OOS`);
+              await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
+              await wait(100);
+              await waitForZoneMap(page).catch(() => {});
+              continue;
+            }
+
+            log(`  ${tryZone}: ✓ has seats`);
+            chosenZone = tryZone;
+            break;
           }
 
-          log(`  ${tryZone}: ✓ has seats`);
-          chosenZone = tryZone;
-          break;
+          if (!chosenZone) {
+            log(`all OOS on pass #${zonePass}, retry in ${RETRY_MS}ms`);
+            await wait(RETRY_MS);
+          }
         }
 
-        if (!chosenZone) {
-          log(`all OOS on pass #${zonePass}, retry in ${RETRY_MS}ms`);
-          await wait(RETRY_MS);
+        // ── Select tickets; retry zone if filter leaves nothing ─────────────
+        try {
+          await handleTicketSelection(page, cfg.booking.ticketCount);
+          break; // ticket selected — exit outer loop
+        } catch (e) {
+          if (e instanceof FilterOOSError) {
+            log(`  ${chosenZone}: ${e.message} – trying next zone`);
+            chosenZone = null; // resets inner zone loop
+            continue;
+          }
+          throw e; // real error — propagate
         }
       }
 
-      await handleTicketSelection(page, cfg.booking.ticketCount);
       await choosePickup(page, cfg.booking.pickupMethod);
       await acceptTerms(page);
       await solveCaptchas(page);
