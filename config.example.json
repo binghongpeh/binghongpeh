@@ -20,9 +20,10 @@
   },
 
   "timing": {
-    "openTimeISO":   "2026-05-02T11:00:00Z",
-    "preOpenLeadMs": 1500,
+    "openTimeISO":    "2026-05-02T11:00:00Z",
+    "preOpenLeadMs":  1500,
+    "retryDelayMs":   100,
     "pollIntervalMs": 500,
-    "navTimeoutMs":  30000
+    "navTimeoutMs":   30000
   }
 }

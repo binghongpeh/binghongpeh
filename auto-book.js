@@ -27,6 +27,7 @@ const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
 const HEADED      = process.env.HEADED === '1';
 const NAV_TIMEOUT = cfg.timing?.navTimeoutMs    ?? 30000;
 const POLL_MS     = cfg.timing?.pollIntervalMs  ?? 500;
+const RETRY_MS    = cfg.timing?.retryDelayMs    ?? 100;
 
 const log  = (...a) => console.log(`[${new Date().toISOString()}]`, ...a);
 const wait = ms    => new Promise(r => setTimeout(r, ms));
@@ -205,12 +206,42 @@ async function login(page) {
 }
 
 // ─── step 2: navigate to buy-ticket step ────────────────────────────────────
+// Retries every retryDelayMs (100ms) until the seat map loads or a
+// "not yet open" message disappears.
 
 async function gotoBookingStep(page) {
   log('Going to event step page:', cfg.eventUrl);
-  await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-  await solveCaptchas(page);
-  await page.waitForTimeout(800);
+
+  const NOT_OPEN_PATTERNS = [
+    /ยังไม่เปิด/i, /not.*open/i, /เปิดจำหน่าย/i,
+    /ticket.*will.*go.*on.*sale/i, /coming.*soon/i, /sold.*out/i
+  ];
+
+  const MAX_RETRIES = 600;   // up to 60s of retries at 100ms each
+  let attempt = 0;
+
+  while (attempt < MAX_RETRIES) {
+    attempt++;
+    await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+    await solveCaptchas(page);
+
+    const bodyText = await page.evaluate(() => document.body?.innerText ?? '');
+    const notOpen  = NOT_OPEN_PATTERNS.some(re => re.test(bodyText));
+
+    if (!notOpen) {
+      log(`Booking page loaded (attempt ${attempt}).`);
+      await page.waitForTimeout(200);
+      return;
+    }
+
+    if (attempt === 1 || attempt % 20 === 0) {
+      log(`Page not open yet (attempt ${attempt}) – retrying every ${RETRY_MS}ms...`);
+    }
+    await wait(RETRY_MS);
+  }
+
+  // Fall through anyway and let the next steps decide
+  log('Max retries reached – proceeding anyway.');
 }
 
 // ─── step 3: select show round (if multiple shown) ───────────────────────────
@@ -257,30 +288,32 @@ function zoneSelectors(zone) {
 
 async function selectZone(page, preferredZones) {
   log('Waiting for seat/zone map...');
-  // Give the page a moment to fully render the SVG map
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(500);
 
-  for (const zone of preferredZones) {
-    log(`Trying zone: "${zone}"`);
-    for (const sel of zoneSelectors(zone)) {
-      try {
-        const loc = page.locator(sel).first();
-        if (!await loc.count()) continue;
+  const MAX_ZONE_RETRIES = 100;   // 100 × 100ms = 10s max wait for map to appear
 
-        const cls = (await loc.getAttribute('class') ?? '').toLowerCase();
-        if (/sold.?out|disable|unavail|full|close/i.test(cls)) {
-          log(`  "${zone}" looks unavailable – trying next zone.`);
-          break;
-        }
+  for (let attempt = 1; attempt <= MAX_ZONE_RETRIES; attempt++) {
+    for (const zone of preferredZones) {
+      for (const sel of zoneSelectors(zone)) {
+        try {
+          const loc = page.locator(sel).first();
+          if (!await loc.count()) continue;
 
-        log(`  Clicking "${zone}" via: ${sel}`);
-        await loc.scrollIntoViewIfNeeded().catch(() => {});
-        await loc.click({ force: true, timeout: 5000 });
-        await page.waitForTimeout(900);
-        log(`  Zone "${zone}" selected.`);
-        return zone;
-      } catch { /* try next selector */ }
+          const cls = (await loc.getAttribute('class') ?? '').toLowerCase();
+          if (/sold.?out|disable|unavail|full|close/i.test(cls)) break;
+
+          log(`Clicking zone "${zone}" via: ${sel} (attempt ${attempt})`);
+          await loc.scrollIntoViewIfNeeded().catch(() => {});
+          await loc.click({ force: true, timeout: 5000 });
+          await page.waitForTimeout(500);
+          log(`Zone "${zone}" selected.`);
+          return zone;
+        } catch { /* try next selector */ }
+      }
     }
+
+    if (attempt % 20 === 0) log(`Zone not found yet (attempt ${attempt}) – retrying...`);
+    await wait(RETRY_MS);
   }
 
   await page.screenshot({ path: 'debug-zone.png', fullPage: true });
@@ -329,17 +362,22 @@ async function handleTicketSelection(page, count) {
   // Wait for at least one available seat
   await page.waitForSelector(availSel, { timeout: NAV_TIMEOUT });
 
-  const seats = await page.locator(availSel).all();
-  let picked   = 0;
-  for (const seat of seats) {
-    if (picked >= count) break;
-    if (!await seat.isVisible().catch(() => false)) continue;
-    try {
-      await seat.click({ timeout: 3000 });
-      picked++;
-      log(`  Seat ${picked}/${count} selected.`);
-      await page.waitForTimeout(300);
-    } catch { /* try next */ }
+  let picked = 0;
+  const MAX_SEAT_RETRIES = 50;
+
+  for (let attempt = 1; attempt <= MAX_SEAT_RETRIES && picked < count; attempt++) {
+    const seats = await page.locator(availSel).all();
+    for (const seat of seats) {
+      if (picked >= count) break;
+      if (!await seat.isVisible().catch(() => false)) continue;
+      try {
+        await seat.click({ timeout: 3000 });
+        picked++;
+        log(`  Seat ${picked}/${count} selected.`);
+        await wait(RETRY_MS);
+      } catch { /* try next */ }
+    }
+    if (picked < count) await wait(RETRY_MS);
   }
 
   if (picked < count) {
