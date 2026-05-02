@@ -449,7 +449,7 @@ async function isOOS(page) {
     /seat|ที่นั่ง|zone/i.test(document.body?.innerText || '')
   ).catch(() => false);
 
-  if (onSeatPage && uiBtnTotal === 0 && genericAvail === 0) {
+  if (onSeatPage && seatTotal === 0 && genericAvail === 0) {
     log('No recognisable seat elements on page – treating as OOS.');
     return true;
   }
@@ -901,20 +901,30 @@ async function runForAccount(creds, idx, total) {
       await selectShowRound(page);
 
       // ── Zone selection: random order, retry forever until one has seats ─────
-      // Zones are shuffled each pass so no single zone gets starved.
-      // The loop runs until a zone is successfully entered (not OOS).
+      // Each account gets an INDEPENDENT random shuffle every pass so two
+      // accounts running in parallel almost never race for the same zone.
+      // Additionally, the first pass is offset by the account index so two
+      // accounts deterministically start on different zones (no collision).
       const preferredZones = [...cfg.booking.preferredZones];
-      let chosenZone   = null;
-      let zonePass     = 0;
+      let chosenZone = null;
+      let zonePass   = 0;
 
       while (!chosenZone) {
         zonePass++;
 
-        // Shuffle preferred zones for this pass (Fisher-Yates)
+        // Fresh Fisher-Yates shuffle per pass per account
         const shuffled = [...preferredZones];
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
+        // On the first pass, rotate by account index so accounts spread out
+        // across the zone list (account 0 starts at shuffled[0], account 1
+        // starts at shuffled[1], etc.). After the first pass it's pure random.
+        if (zonePass === 1 && total > 1) {
+          const rot = idx % shuffled.length;
+          shuffled.push(...shuffled.splice(0, rot));
         }
 
         log(`Zone pass #${zonePass} – trying order: [${shuffled.join(', ')}]`);
