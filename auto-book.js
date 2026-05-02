@@ -535,14 +535,30 @@ async function handleTicketSelection(page, count) {
       const rowKey  = row.length.toString().padStart(2, '0') + row;
       return { handle: h, y: box?.y ?? 9999, x: box?.x ?? 9999, forAttr, rowKey, num };
     }));
-    seatData.sort((a, b) => {
-      if (a.rowKey !== b.rowKey) return a.rowKey < b.rowKey ? -1 : 1; // front row first
-      if (a.num    !== b.num)    return a.num - b.num;                // smallest seat # first
-      if (a.y      !== b.y)      return a.y - b.y;                    // tiebreaker
+    // Apply optional seat filter from config (maxRow / maxSeatNum)
+    const maxRow     = cfg.booking?.maxRow     ? cfg.booking.maxRow.toUpperCase()  : null;
+    const maxSeatNum = cfg.booking?.maxSeatNum ? Number(cfg.booking.maxSeatNum)    : null;
+    let pool = seatData;
+    if (maxRow || maxSeatNum) {
+      const filtered = seatData.filter(s =>
+        (!maxRow     || s.rowKey.slice(2) <= maxRow) &&
+        (!maxSeatNum || s.num             <= maxSeatNum)
+      );
+      if (filtered.length > 0) {
+        pool = filtered;
+      } else {
+        log(`  filter (maxRow=${maxRow} maxSeatNum=${maxSeatNum}) matched 0 – using all seats`);
+      }
+    }
+
+    pool.sort((a, b) => {
+      if (a.rowKey !== b.rowKey) return a.rowKey < b.rowKey ? -1 : 1;
+      if (a.num    !== b.num)    return a.num - b.num;
+      if (a.y      !== b.y)      return a.y - b.y;
       return a.x - b.x;
     });
 
-    const seat = seatData[0];
+    const seat = pool[0];
 
     try {
       await seat.handle.scrollIntoViewIfNeeded().catch(() => {});
@@ -883,7 +899,6 @@ async function runForAccount(creds, idx, total) {
     });
 
     try {
-      await login(page);
       await gotoBookingStep(page);
       await selectShowRound(page);
 

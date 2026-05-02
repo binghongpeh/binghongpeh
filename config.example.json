@@ -26,11 +26,14 @@
   },
 
   "booking": {
-    "preferredZones": ["A", "B1", "B2", "M3"],
+    "preferredZones": ["B1", "B2", "M1", "M2", "M3", "M4", "M5", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "ULTIMATE", "ETERNAL"],
     "showRound":      null,
-    "ticketCount":    2,
+    "ticketCount":    1,
     "pickupMethod":   "self",
-    "agreeTerms":     true
+    "agreeTerms":     true,
+
+    "maxRow":     null,
+    "maxSeatNum": null
   },
 
   "timing": {
