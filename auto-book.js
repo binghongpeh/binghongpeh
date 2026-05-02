@@ -490,9 +490,12 @@ async function handleTicketSelection(page, count) {
   await page.waitForTimeout(600);
 
   // ── Standing: look for a quantity input / select ──────────────────────────
+  // imethai uses a <select> on the post-zone page (Amount / จำนวนบัตร).
   const qtySelectors = [
-    'select[name*="qty" i]',    'select[name*="quantity" i]', 'select[name*="amount" i]',
-    'select[id*="qty" i]',      'select[id*="quantity" i]',
+    'select[name*="qty" i]',      'select[name*="quantity" i]',
+    'select[name*="amount" i]',   'select[name*="ticket" i]',
+    'select[id*="qty" i]',        'select[id*="quantity" i]',
+    'select',  // fallback: any <select> on the page
     'input[name*="qty" i][type="number"]',
     'input[name*="quantity" i][type="number"]',
     'input[type="number"]'
@@ -502,12 +505,18 @@ async function handleTicketSelection(page, count) {
   if (qtyEl) {
     const tag = await qtyEl.evaluate(el => el.tagName.toLowerCase());
     log(`Standing mode detected (${tag}) – setting quantity to ${count}`);
-    if (tag === 'select') {
-      await qtyEl.selectOption(String(count));
-    } else {
-      await qtyEl.fill(String(count));
+    try {
+      if (tag === 'select') {
+        await qtyEl.selectOption({ value: String(count) }).catch(async () => {
+          await qtyEl.selectOption({ label: String(count) }).catch(() => {});
+        });
+      } else {
+        await qtyEl.fill(String(count));
+      }
+      log(`Quantity set to ${count}.`);
+    } catch (e) {
+      log('Quantity set failed:', e.message);
     }
-    log(`Quantity set to ${count}.`);
     return;
   }
 
@@ -554,41 +563,84 @@ async function handleTicketSelection(page, count) {
 
 async function choosePickup(page, method) {
   if (!method) return;
-  const texts = { self: ['Self', 'รับเอง', 'รับด้วยตนเอง'], ems: ['EMS'] }[method] ?? [method];
-  for (const t of texts) {
-    const loc = await firstVisible(page, [
-      `label:has-text("${t}")`, `input[value="${t}"]`, `input[value*="${t}" i]`
-    ]);
-    if (loc) { await loc.click().catch(() => {}); log('Pickup:', t); return; }
-  }
+
+  // Match the imethai pickup form: a radio with label "รับด้วยตนเอง / Self pickup" or "EMS".
+  const ok = await page.evaluate(m => {
+    const wantsSelf = m === 'self';
+    const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+    for (const r of radios) {
+      // Get the label text by walking up to the row / parent
+      const row   = r.closest('tr,td,div,label,li,p') || r.parentElement;
+      const text  = (row?.innerText || '').trim();
+      const isSelf = /รับด้วยตนเอง|self.?pickup|self/i.test(text);
+      const isEms  = /EMS|ค่าส่ง/i.test(text);
+      if ((wantsSelf && isSelf) || (!wantsSelf && isEms)) {
+        r.checked = true;
+        r.click();
+        r.dispatchEvent(new Event('change', { bubbles: true }));
+        return text.slice(0, 80);
+      }
+    }
+    return null;
+  }, method).catch(() => null);
+
+  if (ok) log(`Pickup selected: "${ok}"`);
+  else    log('WARNING: pickup radio not found.');
 }
 
 // ─── step 7: accept terms ────────────────────────────────────────────────────
 
 async function acceptTerms(page) {
   if (!cfg.booking.agreeTerms) return;
-  const cb = await firstVisible(page, [
-    'input[type="checkbox"][name*="agree" i]',
-    'input[type="checkbox"][name*="term" i]',
-    'input[type="checkbox"][id*="agree" i]',
-    'input[type="checkbox"]'
-  ]);
-  if (cb && !await cb.isChecked().catch(() => false)) {
-    await cb.check({ force: true });
-    log('Terms accepted.');
-  }
+
+  // Find the checkbox whose surrounding text contains the "agree to terms" phrase
+  const ok = await page.evaluate(() => {
+    const boxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
+    for (const cb of boxes) {
+      const row  = cb.closest('tr,td,div,label,li,p') || cb.parentElement;
+      const text = (row?.innerText || '').trim();
+      if (/agree|ข้าพเจ้ายอมรับ|เงื่อนไข|terms.*conditions/i.test(text)) {
+        if (!cb.checked) {
+          cb.checked = true;
+          cb.click();
+          cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return text.slice(0, 80);
+      }
+    }
+    // Fallback: tick the first unchecked checkbox
+    const first = boxes.find(b => !b.checked);
+    if (first) { first.checked = true; first.click(); first.dispatchEvent(new Event('change', { bubbles: true })); return 'fallback-first'; }
+    return null;
+  }).catch(() => null);
+
+  if (ok) log(`Terms accepted ("${ok}")`);
+  else    log('WARNING: terms checkbox not found.');
 }
 
 // ─── step 8: next / confirm ──────────────────────────────────────────────────
 
 async function clickNext(page) {
   const btn = await firstVisible(page, [
-    'button:has-text("Next")',    'button:has-text("ถัดไป")',
-    'button:has-text("Confirm")', 'button:has-text("ยืนยัน")',
-    'button:has-text("ซื้อบัตร")', 'input[type="submit"]',
-    'button[type="submit"]'
+    'button:has-text("CONTINUE")',  'button:has-text("Continue")',
+    'button:has-text("ไปขั้นตอนถัดไป")',
+    'input[type="submit"][value*="CONTINUE" i]',
+    'input[type="submit"][value*="ไปขั้นตอน" i]',
+    'a:has-text("CONTINUE")', 'a:has-text("ไปขั้นตอนถัดไป")',
+    'button:has-text("Next")',     'button:has-text("ถัดไป")',
+    'button:has-text("Confirm")',  'button:has-text("ยืนยัน")',
+    'button:has-text("ซื้อบัตร")',
+    'input[type="submit"]', 'button[type="submit"]'
   ]);
-  if (btn) { log('Clicking next/confirm...'); await btn.click(); }
+  if (btn) {
+    log('Clicking CONTINUE...');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {}),
+      btn.click()
+    ]);
+  } else {
+    log('WARNING: CONTINUE button not found.');
+  }
 }
 
 // ─── step 9: notify webhook with checkout URL ───────────────────────────────
