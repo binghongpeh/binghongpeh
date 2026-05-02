@@ -34,10 +34,12 @@ const accountStore = new AsyncLocalStorage();
 function ctx()      { return accountStore.getStore() || { creds: cfg.credentials, tag: '' }; }
 function getCreds() { return ctx().creds; }
 
+// Compact timestamp HH:MM:SS for readability (full ISO is unnecessary noise)
 const log = (...a) => {
+  const t   = new Date().toISOString().slice(11, 19);
   const tag = ctx().tag;
-  if (tag) console.log(`[${new Date().toISOString()}] ${tag}`, ...a);
-  else      console.log(`[${new Date().toISOString()}]`, ...a);
+  if (tag) console.log(`${t} ${tag}`, ...a);
+  else      console.log(`${t}`, ...a);
 };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -205,7 +207,7 @@ async function waitUntilOpen(iso, leadMs = 1500) {
 // ─── step 1: login ───────────────────────────────────────────────────────────
 
 async function login(page) {
-  log('Opening login page:', cfg.siteUrl);
+  log('→ login page');
   await page.goto(cfg.siteUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
   await solveCaptchas(page);
 
@@ -235,20 +237,19 @@ async function login(page) {
   ]);
   if (!submitBtn) throw new Error('Login submit button not found');
 
-  log('Submitting login...');
   await Promise.all([
     page.waitForLoadState('networkidle').catch(() => {}),
     submitBtn.click()
   ]);
   await page.waitForLoadState('networkidle').catch(() => {});
   await wait(300);
-  log('myaccount.php submitted (real verification happens on step.php)');
+  log('login submitted');
 }
 
 // ─── step 2: navigate to booking step ───────────────────────────────────────
 
 async function gotoBookingStep(page) {
-  log('Going to event step page:', cfg.eventUrl);
+  log('→ booking step');
 
   const MAX_RETRIES = 1200;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -273,22 +274,17 @@ async function gotoBookingStep(page) {
     }).catch(() => false);
 
     if (needsLogin) {
-      log('step.php showing inline login form – logging in here...');
+      log('inline login required');
       const ok = await loginInline(page);
       if (!ok) {
         await page.screenshot({ path: 'debug-step-login.png', fullPage: true });
-        throw new Error('Inline login on step.php failed – see debug-step-login.png');
+        throw new Error('Inline login on step.php failed');
       }
       await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
       await wait(200);
     }
 
-    log(`Booking page loaded (attempt ${attempt}). URL: ${page.url()}`);
-    try {
-      const html = await page.content();
-      fs.writeFileSync(path.join(__dirname, 'debug-page.html'), html);
-      log(`Saved debug-page.html (${html.length} bytes)`);
-    } catch {}
+    log(`step.php ready (try ${attempt})`);
     return;
   }
 
@@ -326,9 +322,7 @@ async function loginInline(page) {
   }).catch(() => false);
 
   if (!stillNeedsLogin) {
-    log('========================================');
-    log(`  ✓ LOGIN SUCCESS (step.php) — ${getCreds().username}`);
-    log('========================================');
+    log(`✓ login OK`);
     return true;
   }
   return false;
@@ -371,14 +365,14 @@ async function waitForZoneMap(page) {
   for (let i = 1; i <= MAX; i++) {
     const zones = await getAvailableZones(page);
     if (zones !== null) {
-      log(`Zone map ready. Available zones: [${zones.join(', ')}]`);
+      log(`zones on map: [${zones.join(', ')}]`);
       return zones;
     }
-    if (i % 10 === 0) log(`Waiting for zone map (attempt ${i})...`);
+    if (i % 10 === 0) log(`waiting zone map... (${i})`);
     await wait(RETRY_MS);
   }
   await page.screenshot({ path: 'debug-zone.png', fullPage: true });
-  throw new Error('Zone map never appeared – see debug-zone.png');
+  throw new Error('Zone map never appeared');
 }
 
 // Submits zoneplanForm for a specific zone. Returns false if zone not on page.
@@ -386,7 +380,6 @@ async function submitZone(page, zone) {
   const zones = await getAvailableZones(page);
   if (!zones || !zones.includes(zone)) return false;
 
-  log(`Submitting zoneplanForm with zone="${zone}"`);
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {}),
     page.evaluate(z => {
@@ -394,7 +387,7 @@ async function submitZone(page, zone) {
       document.forms['zoneplanForm'].submit();
     }, zone)
   ]);
-  log(`✓ Zone "${zone}" submitted.`);
+  log(`→ zone ${zone} submitted`);
   return true;
 }
 
@@ -419,22 +412,15 @@ async function isOOS(page) {
     const opts = await page.locator('select').first().evaluate(el =>
       Array.from(el.options).map(o => o.value.trim()).filter(v => v && v !== '0')
     ).catch(() => []);
-    if (opts.length === 0) {
-      log('Standing select has no valid quantity options – OOS.');
-      return true;
-    }
+    if (opts.length === 0) { log('standing: no qty options → OOS'); return true; }
     return false;
   }
 
-  // Seating: count seat[] checkboxes and how many are still unchecked
   const seatTotal = await page.locator('input[type="checkbox"][name="seat[]"]').count().catch(() => 0);
   if (seatTotal > 0) {
     const availCount = await page.locator('input[type="checkbox"][name="seat[]"]:not(:checked)').count().catch(() => 0);
-    if (availCount === 0) {
-      log(`Seat map has ${seatTotal} seats but none available – OOS.`);
-      return true;
-    }
-    log(`Zone has ${availCount}/${seatTotal} seats available.`);
+    if (availCount === 0) { log(`seats: 0/${seatTotal} → OOS`); return true; }
+    log(`seats: ${availCount}/${seatTotal} available`);
     return false;
   }
 
@@ -476,15 +462,11 @@ async function handleTicketSelection(page, count) {
 
   if (qtyEl) {
     const tag = await qtyEl.evaluate(el => el.tagName.toLowerCase());
-    log(`Standing mode (${tag}) – setting quantity to ${count}`);
-
     if (tag === 'select') {
       const options = await qtyEl.evaluate(el =>
         Array.from(el.options).map(o => ({ value: o.value, text: (o.textContent || '').trim() }))
       ).catch(() => []);
       const currentValue = await qtyEl.inputValue().catch(() => '');
-      log(`Qty options: ${JSON.stringify(options)} (current="${currentValue}")`);
-
       const want  = String(count);
       const match = options.find(o => o.value === want)
                  || options.find(o => o.text === want)
@@ -492,24 +474,17 @@ async function handleTicketSelection(page, count) {
                  || options.find(o => o.text.replace(/\s+/g, '') === want);
 
       if (!match) {
-        log(`WARNING: no option matches "${want}" – skipping qty change.`);
-      } else if (currentValue === match.value) {
-        log(`Quantity already ${count} (value="${match.value}").`);
-      } else {
-        try {
-          await qtyEl.selectOption({ value: match.value }, { timeout: 3000 });
-          log(`Quantity set: value="${match.value}".`);
-        } catch {
-          await qtyEl.evaluate((el, v) => {
-            el.value = v;
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-          }, match.value);
-          log(`Quantity set via DOM fallback: value="${match.value}".`);
+        log(`qty: no match for "${want}" in ${options.map(o=>o.value).join(',')}`);
+      } else if (currentValue !== match.value) {
+        try { await qtyEl.selectOption({ value: match.value }, { timeout: 3000 }); }
+        catch {
+          await qtyEl.evaluate((el, v) => { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, match.value);
         }
       }
+      log(`qty=${count}`);
     } else {
       await qtyEl.fill(String(count));
-      log(`Quantity input filled with ${count}.`);
+      log(`qty=${count} (input)`);
     }
     return;
   }
@@ -523,7 +498,7 @@ async function handleTicketSelection(page, count) {
   // The CSS sibling selector "input:not(:checked) + label.ui-button" is the
   // most reliable signal: aria-pressed is absent on fresh seats so checking
   // the unchecked checkbox sibling works regardless.
-  log('Seating mode – picking seats (front-row first, with race-condition retry)...');
+  log('seating mode – picking front-row first');
 
   const AVAIL_SEL = 'input[type="checkbox"][name="seat[]"]:not(:checked) + label.ui-button:not(.ui-state-active)';
 
@@ -584,14 +559,15 @@ async function handleTicketSelection(page, count) {
             || !!(lbl && (lbl.classList.contains('ui-state-active') || lbl.getAttribute('aria-pressed') === 'true'));
       }, seat.forAttr).catch(() => false);
 
+      const row = seat.rowKey.slice(2);
       if (ok) {
         picked++;
-        log(`  ✓ Seat ${picked}/${count} confirmed: row ${seat.rowKey.slice(2)} #${seat.num} (id="${seat.forAttr}").`);
+        log(`  ✓ ${picked}/${count}: ${row}${seat.num}`);
       } else {
-        log(`  ✗ Seat id="${seat.forAttr}" (row ${seat.rowKey.slice(2)} #${seat.num}) taken – next.`);
+        log(`  ✗ ${row}${seat.num} taken`);
       }
     } catch (e) {
-      log(`  Seat click error: ${e.message} – retrying.`);
+      log(`  click err: ${e.message}`);
     }
   }
 
@@ -639,7 +615,7 @@ async function choosePickup(page, method) {
     }
   }, info.id).catch(() => {});
 
-  log(`Pickup selected: "${info.text}"`);
+  log(`pickup: ${info.text}`);
 }
 
 // ─── step 8: accept terms ────────────────────────────────────────────────────
@@ -679,7 +655,7 @@ async function acceptTerms(page) {
     return cb.checked;
   }, cbId).catch(() => false);
 
-  log(ok ? `Terms accepted (#${cbId}).` : `WARNING: terms #${cbId} still unchecked.`);
+  log(ok ? `terms ✓` : `terms ✗ (#${cbId})`);
 }
 
 // ─── step 9: continue button ─────────────────────────────────────────────────
@@ -699,13 +675,13 @@ async function clickNext(page) {
     'input[type="submit"]', 'button[type="submit"]'
   ]);
   if (btn) {
-    log('Clicking CONTINUE...');
+    log('→ continue');
     await Promise.all([
       page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {}),
       btn.click()
     ]);
   } else {
-    log('WARNING: CONTINUE button not found.');
+    log('continue btn not found');
   }
 }
 
@@ -851,11 +827,11 @@ async function notifyCheckout(page, zone) {
   const payload = buildWebhookPayload(wtype, { acc: getCreds().username, zone, checkoutUrl });
   try {
     const r = await postWebhook(webhookUrl, payload);
-    log(`Webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 300)}`);
-    log(`Checkout URL: ${checkoutUrl}`);
+    log(`webhook ${r.status} ${r.body.slice(0, 120)}`);
+    log(`checkout: ${checkoutUrl}`);
   } catch (e) {
-    log('Webhook failed:', e.message);
-    log(`Complete payment manually at: ${checkoutUrl}`);
+    log('webhook err:', e.message);
+    log(`checkout: ${checkoutUrl}`);
   }
 }
 
@@ -867,9 +843,9 @@ async function notifyFailure(creds, errMsg) {
   const payload = buildWebhookPayload(wtype, { acc: creds.username, errMsg });
   try {
     const r = await postWebhook(webhookUrl, payload);
-    log(`Failure webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 300)}`);
+    log(`webhook fail ${r.status} ${r.body.slice(0, 120)}`);
   } catch (e) {
-    log('Failure webhook error:', e.message);
+    log('webhook fail err:', e.message);
   }
 }
 
@@ -878,7 +854,7 @@ async function notifyFailure(creds, errMsg) {
 async function runForAccount(creds, idx, total) {
   const tag = `[${creds.username}]`;
   return accountStore.run({ creds, tag }, async () => {
-    log(`Starting (${idx + 1}/${total})`);
+    log(`start (${idx + 1}/${total})`);
 
     const browser = await chromium.launch({
       headless: !HEADED,
@@ -902,8 +878,7 @@ async function runForAccount(creds, idx, total) {
     // Global dialog handler — covers login, zone nav, AND seat selection phase.
     // imethai shows "Please select new seat" as a JS alert when a seat is taken.
     page.on('dialog', async d => {
-      const msg = d.message();
-      log(`JS dialog: "${msg.slice(0, 120)}" → accepting`);
+      log(`dialog: "${d.message().slice(0, 80)}"`);
       await d.accept().catch(() => d.dismiss().catch(() => {}));
     });
 
@@ -939,7 +914,7 @@ async function runForAccount(creds, idx, total) {
           shuffled.push(...shuffled.splice(0, rot));
         }
 
-        log(`Zone pass #${zonePass} – trying order: [${shuffled.join(', ')}]`);
+        log(`zone pass #${zonePass}: [${shuffled.join(', ')}]`);
 
         // Navigate to zone map (always refresh to get latest availability)
         await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
@@ -950,7 +925,7 @@ async function runForAccount(creds, idx, total) {
         for (const tryZone of shuffled) {
           const submitted = await submitZone(page, tryZone);
           if (!submitted) {
-            log(`  "${tryZone}" not on map – skipping.`);
+            log(`  ${tryZone}: not on map`);
             await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
             await wait(100);
             continue;
@@ -958,20 +933,20 @@ async function runForAccount(creds, idx, total) {
 
           const oos = await isOOS(page);
           if (oos) {
-            log(`  ⚠ Seat OOS for zone "${tryZone}" – trying next.`);
+            log(`  ${tryZone}: OOS`);
             await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
             await wait(100);
             await waitForZoneMap(page).catch(() => {});
             continue;
           }
 
-          log(`  ✓ Zone "${tryZone}" has seats – proceeding.`);
+          log(`  ${tryZone}: ✓ has seats`);
           chosenZone = tryZone;
           break;
         }
 
         if (!chosenZone) {
-          log(`All [${shuffled.join(', ')}] OOS on pass #${zonePass} – retrying in ${RETRY_MS}ms...`);
+          log(`all OOS on pass #${zonePass}, retry in ${RETRY_MS}ms`);
           await wait(RETRY_MS);
         }
       }
@@ -982,22 +957,20 @@ async function runForAccount(creds, idx, total) {
       await solveCaptchas(page);
       await clickNext(page);
 
-      log(`✓ SUCCESS – zone "${chosenZone}" booked.`);
+      log(`✓ SUCCESS zone=${chosenZone}`);
       await notifyCheckout(page, chosenZone);
 
       const checkoutUrl = page.url();
-
-      // Open a visible browser window for payment (works even in headless mode)
       await openHeadedForPayment(context, checkoutUrl);
 
       if (HEADED) {
-        log('Browser stays open 15 minutes for payment.');
+        log('browser open 15 min for payment');
         await wait(15 * 60 * 1000);
       }
 
       return { ok: true, username: creds.username, zone: chosenZone };
     } catch (err) {
-      log('✗ Automation failed:', err.message);
+      log('✗ FAIL:', err.message);
       await page.screenshot({
         path: `debug-final-${creds.username.replace(/[^a-z0-9]/gi, '_')}-${Date.now()}.png`,
         fullPage: true
@@ -1020,7 +993,7 @@ async function runForAccount(creds, idx, total) {
   const accounts = loadAccounts();
   await waitUntilOpen(cfg.timing?.openTimeISO, cfg.timing?.preOpenLeadMs);
 
-  log(`Launching ${accounts.length} account(s) in parallel...`);
+  log(`launching ${accounts.length} account(s)...`);
   const results = await Promise.all(
     accounts.map((creds, idx) => runForAccount(creds, idx, accounts.length))
   );
