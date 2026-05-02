@@ -390,38 +390,64 @@ async function dumpZoneCandidates(page) {
 }
 
 async function selectZone(page, preferredZones) {
-  log('Waiting for seat/zone map...');
-  await page.waitForTimeout(500);
-  await dumpZoneCandidates(page);
+  log('Waiting for zoneplanForm to appear...');
+  await page.waitForTimeout(300);
 
-  const MAX_ZONE_RETRIES = 100;   // 100 × 100ms = 10s max wait for map to appear
+  const MAX_ZONE_RETRIES = 100; // 100 × 100ms = 10s max
 
   for (let attempt = 1; attempt <= MAX_ZONE_RETRIES; attempt++) {
+    // Check which zones are actually available on this page (from <area> onclicks)
+    const availableZones = await page.evaluate(() => {
+      if (!document.forms['zoneplanForm']) return null;
+      const zones = new Set();
+      document.querySelectorAll('area[onclick]').forEach(a => {
+        const m = a.getAttribute('onclick').match(/zone\.value\s*=\s*['"]([^'"]+)['"]/i);
+        if (m) zones.add(m[1]);
+      });
+      return Array.from(zones);
+    }).catch(() => null);
+
+    if (availableZones === null) {
+      if (attempt % 10 === 0) log(`zoneplanForm not yet on page (attempt ${attempt})...`);
+      await wait(RETRY_MS);
+      continue;
+    }
+
+    log(`Available zones on page: [${availableZones.join(', ')}]`);
+
+    // Find the first preferred zone that exists on the page
     for (const zone of preferredZones) {
-      for (const sel of zoneSelectors(zone)) {
-        try {
-          const loc = page.locator(sel).first();
-          if (!await loc.count()) continue;
+      if (!availableZones.includes(zone)) {
+        log(`  "${zone}" not present – trying next preferred zone.`);
+        continue;
+      }
 
-          const cls = (await loc.getAttribute('class') ?? '').toLowerCase();
-          if (/sold.?out|disable|unavail|full|close/i.test(cls)) break;
-
-          log(`Clicking zone "${zone}" via: ${sel} (attempt ${attempt})`);
-          await loc.scrollIntoViewIfNeeded().catch(() => {});
-          await loc.click({ force: true, timeout: 5000 });
-          await page.waitForTimeout(500);
-          log(`Zone "${zone}" selected.`);
-          return zone;
-        } catch { /* try next selector */ }
+      log(`Submitting zoneplanForm with zone="${zone}"`);
+      try {
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {}),
+          page.evaluate(z => {
+            document.forms['zoneplanForm'].zone.value = z;
+            document.forms['zoneplanForm'].submit();
+          }, zone)
+        ]);
+        log(`✓ Zone "${zone}" submitted.`);
+        return zone;
+      } catch (e) {
+        log(`Submit failed for "${zone}": ${e.message}`);
       }
     }
 
-    if (attempt % 20 === 0) log(`Zone not found yet (attempt ${attempt}) – retrying...`);
-    await wait(RETRY_MS);
+    // None of the preferred zones were on this page – stop and report
+    await page.screenshot({ path: 'debug-zone.png', fullPage: true });
+    throw new Error(
+      `None of [${preferredZones.join(', ')}] are available. ` +
+      `Page only has [${availableZones.join(', ')}]. See debug-zone.png.`
+    );
   }
 
   await page.screenshot({ path: 'debug-zone.png', fullPage: true });
-  throw new Error('No preferred zone clicked – see debug-zone.png');
+  throw new Error('zoneplanForm never appeared – see debug-zone.png');
 }
 
 // ─── step 5: standing OR seating auto-detection ─────────────────────────────
