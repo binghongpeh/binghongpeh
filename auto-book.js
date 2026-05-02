@@ -216,13 +216,34 @@ async function login(page) {
     submitBtn.click()
   ]);
 
-  // Confirm login succeeded by checking for common post-login indicators
-  const loggedIn = await firstVisible(page, [
-    'a:has-text("ออกจากระบบ")', 'a:has-text("Logout")', 'a:has-text("Sign out")',
-    '[class*="account"]', '[class*="myaccount"]'
-  ]);
-  if (loggedIn) log('Login confirmed.');
-  else           log('Login submitted (could not confirm – check debug-login.png if stuck).');
+  // Confirm login succeeded — wait up to 10s, retry every 100ms
+  let loggedIn = null;
+  for (let i = 0; i < 100; i++) {
+    loggedIn = await firstVisible(page, [
+      'a:has-text("ออกจากระบบ")', 'a:has-text("Logout")', 'a:has-text("Sign out")',
+      'a[href*="logout"]',
+      '[class*="account"]', '[class*="myaccount"]'
+    ]);
+    if (loggedIn) break;
+
+    // Also detect by URL change away from the login page
+    if (!page.url().includes('myaccount.php') && !page.url().includes('login')) {
+      loggedIn = true; break;
+    }
+    await wait(100);
+  }
+
+  if (loggedIn) {
+    log('========================================');
+    log('  ✓ LOGIN SUCCESS — logged in as ' + cfg.credentials.username);
+    log('========================================');
+  } else {
+    log('========================================');
+    log('  ✗ LOGIN FAILED — check debug-login.png');
+    log('========================================');
+    await page.screenshot({ path: 'debug-login.png', fullPage: true });
+    throw new Error('Login appears to have failed');
+  }
 }
 
 // ─── step 2: navigate to buy-ticket step ────────────────────────────────────
