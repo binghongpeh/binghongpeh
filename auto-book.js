@@ -250,11 +250,6 @@ async function login(page) {
 async function gotoBookingStep(page) {
   log('Going to event step page:', cfg.eventUrl);
 
-  page.on('dialog', async d => {
-    log('JS dialog:', d.message().slice(0, 120));
-    await d.accept().catch(() => d.dismiss().catch(() => {}));
-  });
-
   const MAX_RETRIES = 1200;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -405,48 +400,56 @@ async function submitZone(page, zone) {
 
 // ─── step 5: OOS detection ───────────────────────────────────────────────────
 // Returns true if the current ticket-selection page has no bookable items.
+// imethai seating: available = label.ui-button[aria-pressed="false"]
+// imethai standing: <select> with at least one value > 0
 
 async function isOOS(page) {
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(800);
 
-  // Check for explicit OOS text
+  // Explicit sold-out text
   const textOOS = await page.evaluate(() => {
     const t = (document.body?.innerText || '').toLowerCase();
     return /sold.?out|หมดแล้ว|ไม่มีที่นั่ง|no.*seat|out.of.stock/.test(t);
   }).catch(() => false);
   if (textOOS) return true;
 
-  // For standing zones: <select> present but no valid qty options
-  const selEl = await page.locator('select').first();
-  if (await selEl.count().catch(() => 0)) {
-    const opts = await selEl.evaluate(el =>
+  // Standing: <select> present
+  const selCount = await page.locator('select').count().catch(() => 0);
+  if (selCount > 0) {
+    const opts = await page.locator('select').first().evaluate(el =>
       Array.from(el.options).map(o => o.value.trim()).filter(v => v && v !== '0')
     ).catch(() => []);
     if (opts.length === 0) {
-      log('Standing select has no valid options – OOS.');
+      log('Standing select has no valid quantity options – OOS.');
       return true;
     }
-    return false; // has options → not OOS
+    return false;
   }
 
-  // For seating zones: no available seat elements visible
-  const availSel = [
+  // Seating (imethai jQuery UI buttons): label.ui-button[aria-pressed="false"]
+  const uiBtnTotal = await page.locator('label.ui-button').count().catch(() => 0);
+  if (uiBtnTotal > 0) {
+    const availCount = await page.locator('label.ui-button[aria-pressed="false"]').count().catch(() => 0);
+    if (availCount === 0) {
+      log(`Seat map has ${uiBtnTotal} seats but none available – OOS.`);
+      return true;
+    }
+    return false;
+  }
+
+  // Generic fallback: no recognised seat elements
+  const genericAvail = await page.locator([
     'input[type="checkbox"][name*="seat" i]:not([disabled])',
-    '.seat.available', '.seat:not(.sold):not(.disabled):not(.reserved)',
-    'td.seat:not(.sold):not(.disabled)', 'td.available',
-    '[data-status="available"]',
-    '[class*="seat"]:not([class*="sold"]):not([class*="disabled"])'
-  ].join(', ');
+    '.seat.available',
+    '[data-status="available"]'
+  ].join(', ')).count().catch(() => 0);
 
-  const seatCount = await page.locator(availSel).count().catch(() => 0);
-
-  // Only call OOS if we're clearly on a seat-map page but no seats found
   const onSeatPage = await page.evaluate(() =>
     /seat|ที่นั่ง|zone/i.test(document.body?.innerText || '')
   ).catch(() => false);
 
-  if (onSeatPage && seatCount === 0) {
-    log('Seat map page has no available seats – OOS.');
+  if (onSeatPage && uiBtnTotal === 0 && genericAvail === 0) {
+    log('No recognisable seat elements on page – treating as OOS.');
     return true;
   }
 
@@ -510,50 +513,78 @@ async function handleTicketSelection(page, count) {
     return;
   }
 
-  // ── Seating: click individual seats, front-row first ─────────────────────
-  log('Seating mode – picking seats (front-row first)...');
+  // ── Seating: imethai jQuery UI seat labels ────────────────────────────────
+  // Available: label.ui-button[aria-pressed="false"]
+  // Selected:  label.ui-button[aria-pressed="true"]  (+ ui-state-active class)
+  // When a seat is already taken by someone else imethai shows a JS alert
+  // "Please select new seat" → global dialog handler accepts it → we detect
+  // the click failed by checking aria-pressed is still "false" and retry.
+  log('Seating mode – picking seats (front-row first, with race-condition retry)...');
 
-  const availSel = [
-    'input[type="checkbox"][name*="seat" i]:not([disabled])',
-    '.seat.available', '.seat:not(.sold):not(.disabled):not(.reserved)',
-    'td.seat:not(.sold):not(.disabled)', 'td.available',
-    'rect[class*="avail"]', 'circle[class*="avail"]',
-    '[data-status="available"]',
-    '[class*="seat"]:not([class*="sold"]):not([class*="disabled"])'
-  ].join(', ');
+  const AVAIL_SEL = 'label.ui-button[aria-pressed="false"]';
 
-  await page.waitForSelector(availSel, { timeout: NAV_TIMEOUT });
+  // Wait for at least one available seat button to appear
+  try {
+    await page.waitForSelector(AVAIL_SEL, { timeout: NAV_TIMEOUT });
+  } catch {
+    await page.screenshot({ path: 'debug-seats.png', fullPage: true });
+    throw new Error('No available seat buttons found – see debug-seats.png');
+  }
 
-  // Gather all seats and sort by vertical position (front row = smallest Y)
-  // then by horizontal position (left to right) for a natural order.
-  const seatHandles = await page.locator(availSel).all();
+  let picked       = 0;
+  const MAX_TRIES  = 300; // generous: many seats may be taken during the rush
+  let   totalTries = 0;
 
-  const seatData = await Promise.all(seatHandles.map(async h => {
-    const box  = await h.boundingBox().catch(() => null);
-    const id   = await h.getAttribute('id').catch(() => '');
-    const cls  = await h.getAttribute('class').catch(() => '');
-    return { handle: h, y: box?.y ?? 9999, x: box?.x ?? 9999, id, cls };
-  }));
+  while (picked < count && totalTries < MAX_TRIES) {
+    totalTries++;
 
-  // Sort: topmost Y first (front rows on most layouts), then left to right
-  seatData.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+    // Re-query on every iteration so we see the live seat state
+    const handles = await page.locator(AVAIL_SEL).all();
+    if (handles.length === 0) {
+      await page.screenshot({ path: 'debug-seats.png', fullPage: true });
+      throw new Error('All seats are now taken – OOS. See debug-seats.png');
+    }
 
-  let picked = 0;
-  for (const seat of seatData) {
-    if (picked >= count) break;
-    if (!await seat.handle.isVisible().catch(() => false)) continue;
+    // Sort front-row first: smallest Y (top of viewport) → smallest X
+    const seatData = await Promise.all(handles.map(async h => {
+      const box     = await h.boundingBox().catch(() => null);
+      const forAttr = await h.getAttribute('for').catch(() => '');
+      return { handle: h, y: box?.y ?? 9999, x: box?.x ?? 9999, forAttr };
+    }));
+    seatData.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+
+    const seat = seatData[0]; // topmost-left available seat
+
     try {
       await seat.handle.scrollIntoViewIfNeeded().catch(() => {});
       await seat.handle.click({ timeout: 3000 });
-      picked++;
-      log(`  Seat ${picked}/${count} clicked (y=${Math.round(seat.y)}, x=${Math.round(seat.x)}, id="${seat.id}").`);
+
+      // Wait a moment for the dialog (if any) to fire and be dismissed,
+      // then for the DOM to update.
+      await wait(600);
+
+      // Verify the seat is now active (aria-pressed="true")
+      const nowPressed = await page
+        .locator(`label[for="${seat.forAttr}"]`)
+        .getAttribute('aria-pressed')
+        .catch(() => 'false');
+
+      if (nowPressed === 'true') {
+        picked++;
+        log(`  ✓ Seat ${picked}/${count} confirmed (for="${seat.forAttr}", row≈y${Math.round(seat.y)}).`);
+      } else {
+        log(`  ✗ Seat for="${seat.forAttr}" was taken (dialog dismissed) – retrying next seat.`);
+        await wait(RETRY_MS);
+      }
+    } catch (e) {
+      log(`  Seat click error: ${e.message} – retrying.`);
       await wait(RETRY_MS);
-    } catch { /* try next */ }
+    }
   }
 
   if (picked < count) {
     await page.screenshot({ path: 'debug-seats.png', fullPage: true });
-    throw new Error(`Only picked ${picked}/${count} seats – see debug-seats.png`);
+    throw new Error(`Only secured ${picked}/${count} seats after ${totalTries} attempts – see debug-seats.png`);
   }
 }
 
@@ -827,6 +858,14 @@ async function runForAccount(creds, idx, total) {
 
     const page = await context.newPage();
     page.setDefaultTimeout(NAV_TIMEOUT);
+
+    // Global dialog handler — covers login, zone nav, AND seat selection phase.
+    // imethai shows "Please select new seat" as a JS alert when a seat is taken.
+    page.on('dialog', async d => {
+      const msg = d.message();
+      log(`JS dialog: "${msg.slice(0, 120)}" → accepting`);
+      await d.accept().catch(() => d.dismiss().catch(() => {}));
+    });
 
     try {
       await login(page);
