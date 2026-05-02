@@ -404,7 +404,7 @@ async function submitZone(page, zone) {
 // imethai standing: <select> with at least one value > 0
 
 async function isOOS(page) {
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(300);
 
   // Explicit sold-out text
   const textOOS = await page.evaluate(() => {
@@ -426,14 +426,15 @@ async function isOOS(page) {
     return false;
   }
 
-  // Seating (imethai jQuery UI buttons): label.ui-button[aria-pressed="false"]
-  const uiBtnTotal = await page.locator('label.ui-button').count().catch(() => 0);
-  if (uiBtnTotal > 0) {
-    const availCount = await page.locator('label.ui-button[aria-pressed="false"]').count().catch(() => 0);
+  // Seating: count seat[] checkboxes and how many are still unchecked
+  const seatTotal = await page.locator('input[type="checkbox"][name="seat[]"]').count().catch(() => 0);
+  if (seatTotal > 0) {
+    const availCount = await page.locator('input[type="checkbox"][name="seat[]"]:not(:checked)').count().catch(() => 0);
     if (availCount === 0) {
-      log(`Seat map has ${uiBtnTotal} seats but none available – OOS.`);
+      log(`Seat map has ${seatTotal} seats but none available – OOS.`);
       return true;
     }
+    log(`Zone has ${availCount}/${seatTotal} seats available.`);
     return false;
   }
 
@@ -459,7 +460,7 @@ async function isOOS(page) {
 // ─── step 6: ticket quantity / seat selection ────────────────────────────────
 
 async function handleTicketSelection(page, count) {
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(200);
 
   // ── Standing: quantity <select> or <input> ────────────────────────────────
   const qtySelectors = [
@@ -514,16 +515,18 @@ async function handleTicketSelection(page, count) {
   }
 
   // ── Seating: imethai jQuery UI seat labels ────────────────────────────────
-  // Available: label.ui-button[aria-pressed="false"]
-  // Selected:  label.ui-button[aria-pressed="true"]  (+ ui-state-active class)
-  // When a seat is already taken by someone else imethai shows a JS alert
-  // "Please select new seat" → global dialog handler accepts it → we detect
-  // the click failed by checking aria-pressed is still "false" and retry.
+  // Available seat: <input type="checkbox" name="seat[]"> + sibling
+  //                 <label class="ui-button" ...>  (no ui-state-active)
+  // Selected seat:  same label PLUS class "ui-state-active" and aria-pressed="true"
+  // Not-available:  just <img src="n.gif"> in the cell — no input/label at all
+  //
+  // The CSS sibling selector "input:not(:checked) + label.ui-button" is the
+  // most reliable signal: aria-pressed is absent on fresh seats so checking
+  // the unchecked checkbox sibling works regardless.
   log('Seating mode – picking seats (front-row first, with race-condition retry)...');
 
-  const AVAIL_SEL = 'label.ui-button[aria-pressed="false"]';
+  const AVAIL_SEL = 'input[type="checkbox"][name="seat[]"]:not(:checked) + label.ui-button:not(.ui-state-active)';
 
-  // Wait for at least one available seat button to appear
   try {
     await page.waitForSelector(AVAIL_SEL, { timeout: NAV_TIMEOUT });
   } catch {
@@ -532,20 +535,19 @@ async function handleTicketSelection(page, count) {
   }
 
   let picked       = 0;
-  const MAX_TRIES  = 300; // generous: many seats may be taken during the rush
+  const MAX_TRIES  = 300;
   let   totalTries = 0;
 
   while (picked < count && totalTries < MAX_TRIES) {
     totalTries++;
 
-    // Re-query on every iteration so we see the live seat state
     const handles = await page.locator(AVAIL_SEL).all();
     if (handles.length === 0) {
       await page.screenshot({ path: 'debug-seats.png', fullPage: true });
       throw new Error('All seats are now taken – OOS. See debug-seats.png');
     }
 
-    // Sort front-row first: smallest Y (top of viewport) → smallest X
+    // Sort front-row first: smallest Y → smallest X
     const seatData = await Promise.all(handles.map(async h => {
       const box     = await h.boundingBox().catch(() => null);
       const forAttr = await h.getAttribute('for').catch(() => '');
@@ -553,32 +555,31 @@ async function handleTicketSelection(page, count) {
     }));
     seatData.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
 
-    const seat = seatData[0]; // topmost-left available seat
+    const seat = seatData[0];
 
     try {
       await seat.handle.scrollIntoViewIfNeeded().catch(() => {});
-      await seat.handle.click({ timeout: 3000 });
+      await seat.handle.click({ timeout: 2000 });
 
-      // Wait a moment for the dialog (if any) to fire and be dismissed,
-      // then for the DOM to update.
-      await wait(600);
+      // Brief wait for dialog (auto-dismissed by handler) + DOM update
+      await wait(250);
 
-      // Verify the seat is now active (aria-pressed="true")
-      const nowPressed = await page
-        .locator(`label[for="${seat.forAttr}"]`)
-        .getAttribute('aria-pressed')
-        .catch(() => 'false');
+      // Verify: checkbox checked OR label gained ui-state-active / aria-pressed=true
+      const ok = await page.evaluate(id => {
+        const cb  = document.getElementById(id);
+        const lbl = document.querySelector(`label[for="${id}"]`);
+        return !!(cb && cb.checked)
+            || !!(lbl && (lbl.classList.contains('ui-state-active') || lbl.getAttribute('aria-pressed') === 'true'));
+      }, seat.forAttr).catch(() => false);
 
-      if (nowPressed === 'true') {
+      if (ok) {
         picked++;
-        log(`  ✓ Seat ${picked}/${count} confirmed (for="${seat.forAttr}", row≈y${Math.round(seat.y)}).`);
+        log(`  ✓ Seat ${picked}/${count} confirmed (id="${seat.forAttr}", y≈${Math.round(seat.y)}).`);
       } else {
-        log(`  ✗ Seat for="${seat.forAttr}" was taken (dialog dismissed) – retrying next seat.`);
-        await wait(RETRY_MS);
+        log(`  ✗ Seat id="${seat.forAttr}" was taken – retrying next seat.`);
       }
     } catch (e) {
       log(`  Seat click error: ${e.message} – retrying.`);
-      await wait(RETRY_MS);
     }
   }
 
@@ -921,25 +922,23 @@ async function runForAccount(creds, idx, total) {
         // Navigate to zone map (always refresh to get latest availability)
         await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
         await solveCaptchas(page).catch(() => {});
-        await wait(300);
+        await wait(150);
         await waitForZoneMap(page);
 
         for (const tryZone of shuffled) {
           const submitted = await submitZone(page, tryZone);
           if (!submitted) {
             log(`  "${tryZone}" not on map – skipping.`);
-            // Navigate back to zone map to try next zone
             await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
-            await wait(200);
+            await wait(100);
             continue;
           }
 
           const oos = await isOOS(page);
           if (oos) {
             log(`  ⚠ Seat OOS for zone "${tryZone}" – trying next.`);
-            // Navigate back to zone map for next zone
             await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
-            await wait(200);
+            await wait(100);
             await waitForZoneMap(page).catch(() => {});
             continue;
           }
