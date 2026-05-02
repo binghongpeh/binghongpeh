@@ -11,6 +11,10 @@
     "apiKey": "YOUR_CAPSOLVER_API_KEY"
   },
 
+  "webhook": {
+    "url": "https://discord.com/api/webhooks/XXXXX/YYYYY"
+  },
+
   "booking": {
     "preferredZones": ["A", "B1", "B2", "M3"],
     "showRound":      null,

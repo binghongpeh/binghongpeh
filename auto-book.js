@@ -468,6 +468,74 @@ async function clickNext(page) {
   if (btn) { log('Clicking next/confirm...'); await btn.click(); }
 }
 
+// ─── step 9: notify webhook with checkout URL ───────────────────────────────
+
+function postWebhook(webhookUrl, payload) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(payload);
+    const u    = new URL(webhookUrl);
+    const lib  = u.protocol === 'http:' ? require('http') : https;
+    const req  = lib.request({
+      hostname: u.hostname,
+      port:     u.port || (u.protocol === 'http:' ? 80 : 443),
+      path:     u.pathname + u.search,
+      method:   'POST',
+      headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
+    }, res => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: raw }));
+    });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+async function notifyCheckout(page, zone) {
+  const webhookUrl = cfg.webhook?.url;
+  if (!webhookUrl) { log('No webhook configured – skipping notification.'); return; }
+
+  // Wait for navigation to settle on the checkout/payment page
+  await page.waitForLoadState('domcontentloaded').catch(() => {});
+  await wait(800);
+
+  const checkoutUrl = page.url();
+  const screenshot  = `checkout-${Date.now()}.png`;
+  await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
+
+  // Discord webhook? Format as embed; otherwise send a plain JSON payload.
+  const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(webhookUrl);
+
+  const payload = isDiscord
+    ? {
+        username: 'imethai bot',
+        content:  `🎫 **Ticket secured!**\nZone: **${zone}**\nClick to pay: ${checkoutUrl}`,
+        embeds: [{
+          title:       'Complete payment',
+          url:         checkoutUrl,
+          description: `Zone: ${zone}\nUser: ${cfg.credentials.username}`,
+          color:       0x57F287,
+          timestamp:   new Date().toISOString()
+        }]
+      }
+    : {
+        event:       'checkout_ready',
+        status:      'success',
+        zone:        zone,
+        username:    cfg.credentials.username,
+        checkoutUrl: checkoutUrl,
+        timestamp:   new Date().toISOString()
+      };
+
+  try {
+    const r = await postWebhook(webhookUrl, payload);
+    log(`Webhook delivered (HTTP ${r.status}). Checkout URL: ${checkoutUrl}`);
+  } catch (e) {
+    log('Webhook failed:', e.message);
+  }
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 
 (async () => {
@@ -505,7 +573,9 @@ async function clickNext(page) {
     await solveCaptchas(page);
     await clickNext(page);
 
-    log(`\n✓ SUCCESS – zone "${chosenZone}" booked. Complete payment in the browser.`);
+    log(`\n✓ SUCCESS – zone "${chosenZone}" booked.`);
+    await notifyCheckout(page, chosenZone);
+    log('Complete payment in the browser or via the webhook link.');
 
     if (HEADED) {
       log('Browser stays open for 15 minutes for payment.');
