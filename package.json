@@ -1,12 +1,11 @@
 {
-  "name": "ticket-auto-booker",
-  "version": "1.0.0",
-  "description": "Automated login + seat selection for NEXZ Global Showcase ticket site",
+  "name": "imethai-auto-booker",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
-    "book": "node auto-book.js",
-    "book:headed": "HEADED=1 node auto-book.js",
-    "install:browsers": "playwright install chromium"
+    "book":              "node auto-book.js",
+    "book:headed":       "HEADED=1 node auto-book.js",
+    "install:browsers":  "playwright install chromium"
   },
   "dependencies": {
     "playwright": "^1.48.0"

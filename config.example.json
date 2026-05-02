@@ -1,21 +1,28 @@
 {
-  "siteUrl": "https://www.imethai.com/index_82.html",
-  "eventUrl": "https://www.imethai.com/2025_82MAJOR_X82_BKK/step.php",
+  "siteUrl":  "https://www.imethai.com/myaccount.php",
+  "eventUrl": "https://www.imethai.com/2026_IOI_LOOP_in_Bkk/step.php",
+
   "credentials": {
-    "username": "YOUR_USERNAME",
+    "username": "YOUR_USERNAME_OR_EMAIL",
     "password": "YOUR_PASSWORD"
   },
-  "booking": {
-    "preferredZones": ["B1", "B2", "A1"],
-    "showRound": "2026-07-04",
-    "ticketCount": 1,
-    "pickupMethod": "self",
-    "agreeTerms": true
+
+  "capsolver": {
+    "apiKey": "YOUR_CAPSOLVER_API_KEY"
   },
+
+  "booking": {
+    "preferredZones": ["A", "B1", "B2", "M3"],
+    "showRound":      null,
+    "ticketCount":    2,
+    "pickupMethod":   "self",
+    "agreeTerms":     true
+  },
+
   "timing": {
-    "openTimeISO": null,
+    "openTimeISO":   "2026-05-02T11:00:00Z",
     "preOpenLeadMs": 1500,
-    "pollIntervalMs": 250,
-    "navTimeoutMs": 30000
+    "pollIntervalMs": 500,
+    "navTimeoutMs":  30000
   }
 }
