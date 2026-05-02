@@ -564,28 +564,32 @@ async function handleTicketSelection(page, count) {
 async function choosePickup(page, method) {
   if (!method) return;
 
-  // Match the imethai pickup form: a radio with label "รับด้วยตนเอง / Self pickup" or "EMS".
-  const ok = await page.evaluate(m => {
+  const result = await page.evaluate(m => {
     const wantsSelf = m === 'self';
     const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+
     for (const r of radios) {
-      // Get the label text by walking up to the row / parent
+      // Match by associated label text (Self pickup / EMS)
+      const label = r.id ? document.querySelector(`label[for="${r.id}"]`) : null;
       const row   = r.closest('tr,td,div,label,li,p') || r.parentElement;
-      const text  = (row?.innerText || '').trim();
-      const isSelf = /รับด้วยตนเอง|self.?pickup|self/i.test(text);
+      const text  = (label?.innerText || row?.innerText || '').trim();
+
+      const isSelf = /รับด้วยตนเอง|self.?pickup/i.test(text);
       const isEms  = /EMS|ค่าส่ง/i.test(text);
+
       if ((wantsSelf && isSelf) || (!wantsSelf && isEms)) {
+        // Click the visible label (hidden radio trick) and force state
+        if (label) label.click();
         r.checked = true;
-        r.click();
         r.dispatchEvent(new Event('change', { bubbles: true }));
-        return text.slice(0, 80);
+        return { ok: r.checked, name: r.name, value: r.value, text: text.slice(0, 60) };
       }
     }
-    return null;
-  }, method).catch(() => null);
+    return { ok: false };
+  }, method).catch(() => ({ ok: false }));
 
-  if (ok) log(`Pickup selected: "${ok}"`);
-  else    log('WARNING: pickup radio not found.');
+  if (result.ok) log(`Pickup selected: name="${result.name}" value="${result.value}" ("${result.text}")`);
+  else            log('WARNING: pickup radio not found.');
 }
 
 // ─── step 7: accept terms ────────────────────────────────────────────────────
@@ -593,42 +597,52 @@ async function choosePickup(page, method) {
 async function acceptTerms(page) {
   if (!cfg.booking.agreeTerms) return;
 
-  // Find the checkbox whose surrounding text contains the "agree to terms" phrase
-  const ok = await page.evaluate(() => {
-    const boxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
-    for (const cb of boxes) {
-      const row  = cb.closest('tr,td,div,label,li,p') || cb.parentElement;
-      const text = (row?.innerText || '').trim();
-      if (/agree|ข้าพเจ้ายอมรับ|เงื่อนไข|terms.*conditions/i.test(text)) {
-        if (!cb.checked) {
-          cb.checked = true;
-          cb.click();
-          cb.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        return text.slice(0, 80);
-      }
-    }
-    // Fallback: tick the first unchecked checkbox
-    const first = boxes.find(b => !b.checked);
-    if (first) { first.checked = true; first.click(); first.dispatchEvent(new Event('change', { bubbles: true })); return 'fallback-first'; }
-    return null;
-  }).catch(() => null);
+  // imethai uses the css-checkbox/css-label trick: the real <input> is hidden,
+  // and clicking the <label for="..."> toggles it. So we ALWAYS click the label.
+  const result = await page.evaluate(() => {
+    // 1) Try to find the terms checkbox by name="terms" or known id
+    let cb = document.querySelector('input[type="checkbox"][name="terms"]')
+          || document.querySelector('#checkboxG1')
+          || Array.from(document.querySelectorAll('input[type="checkbox"]'))
+              .find(c => {
+                const row = c.closest('tr,td,div,label,li,p') || c.parentElement;
+                return /agree|ข้าพเจ้ายอมรับ|เงื่อนไข|terms.*conditions/i.test(row?.innerText || '');
+              });
 
-  if (ok) log(`Terms accepted ("${ok}")`);
-  else    log('WARNING: terms checkbox not found.');
+    if (!cb) return { ok: false, reason: 'no checkbox' };
+
+    // Click the matching <label for="..."> if it exists (toggles hidden checkbox)
+    const label = cb.id ? document.querySelector(`label[for="${cb.id}"]`) : null;
+    if (label && !cb.checked) label.click();
+    // Force the underlying state too for safety
+    if (!cb.checked) {
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    return { ok: cb.checked, id: cb.id, name: cb.name, hadLabel: !!label };
+  }).catch(e => ({ ok: false, reason: e.message }));
+
+  if (result.ok) {
+    log(`Terms accepted (id="${result.id}" name="${result.name}" via ${result.hadLabel ? 'label' : 'direct'})`);
+  } else {
+    log('WARNING: terms checkbox not ticked –', result.reason || 'unknown');
+  }
 }
 
 // ─── step 8: next / confirm ──────────────────────────────────────────────────
 
 async function clickNext(page) {
   const btn = await firstVisible(page, [
-    'button:has-text("CONTINUE")',  'button:has-text("Continue")',
-    'button:has-text("ไปขั้นตอนถัดไป")',
+    'input.myButton[type="submit"]',
+    'input[type="submit"][name="SUBMIT"]',
     'input[type="submit"][value*="CONTINUE" i]',
     'input[type="submit"][value*="ไปขั้นตอน" i]',
-    'a:has-text("CONTINUE")', 'a:has-text("ไปขั้นตอนถัดไป")',
-    'button:has-text("Next")',     'button:has-text("ถัดไป")',
-    'button:has-text("Confirm")',  'button:has-text("ยืนยัน")',
+    'button:has-text("CONTINUE")',  'button:has-text("Continue")',
+    'button:has-text("ไปขั้นตอนถัดไป")',
+    'a:has-text("CONTINUE")',        'a:has-text("ไปขั้นตอนถัดไป")',
+    'button:has-text("Next")',       'button:has-text("ถัดไป")',
+    'button:has-text("Confirm")',    'button:has-text("ยืนยัน")',
     'button:has-text("ซื้อบัตร")',
     'input[type="submit"]', 'button[type="submit"]'
   ]);
