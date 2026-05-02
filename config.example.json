@@ -14,7 +14,15 @@
   },
 
   "webhook": {
-    "url": "https://discord.com/api/webhooks/XXXXX/YYYYY"
+    "____comment": "Choose ONE of the options below and delete the other.",
+
+    "____OPTION_A_Discord_only": "Direct Discord webhook — paste your Discord webhook URL here",
+    "____url_discord_example":   "https://discord.com/api/webhooks/1234567890123456789/xxxxxxxxxxxxxxxxxxxx",
+
+    "____OPTION_B_AYCD_Inbox": "AYCD Inbox webhook — AYCD proxies to Discord and logs in Inbox",
+    "url":              "https://inbox-api.aycd.io/api/v1/webhooks/send/YOUR_AYCD_KEY/YOUR_TASK_ID",
+    "discordWebhookId": "YOUR_DISCORD_WEBHOOK_SNOWFLAKE_ID",
+    "discordWebhookToken": "YOUR_DISCORD_WEBHOOK_TOKEN"
   },
 
   "booking": {

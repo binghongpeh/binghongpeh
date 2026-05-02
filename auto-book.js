@@ -756,9 +756,78 @@ function postWebhook(webhookUrl, payload) {
   });
 }
 
+// Build the correct webhook payload depending on destination.
+//
+// Supported modes (detected from config.webhook):
+//   1. Direct Discord  — url matches discord.com/api/webhooks/
+//   2. AYCD Inbox      — url matches inbox-api.aycd.io  (proxies to Discord;
+//                        requires discordWebhookId + discordWebhookToken in config)
+//   3. Generic         — any other URL; sends a plain JSON body
+//
+function buildWebhookPayload(type, { acc, zone, checkoutUrl, errMsg }) {
+  const isSuccess = !!checkoutUrl;
+  const ts        = new Date().toISOString();
+
+  const discordEmbed = isSuccess
+    ? {
+        username: 'imethai bot',
+        content:  `🎫 **Ticket secured!**\nAccount: **${acc}**\nZone: **${zone}**\nClick to pay: ${checkoutUrl}`,
+        embeds: [{
+          title:       `Pay now — ${acc}`,
+          url:         checkoutUrl,
+          description: `**Account:** ${acc}\n**Zone:** ${zone}`,
+          color:       0x57F287,
+          timestamp:   ts,
+          footer:      { text: 'imethai auto-booker' }
+        }]
+      }
+    : { content: `❌ **${acc}** failed: ${errMsg}` };
+
+  if (type === 'discord') return discordEmbed;
+
+  if (type === 'aycd') {
+    // AYCD Inbox expects Discord embed format PLUS webhook_id / webhook_token
+    // so it can proxy the notification to your Discord and log it in Inbox.
+    return {
+      webhook_id:    cfg.webhook.discordWebhookId,
+      webhook_token: cfg.webhook.discordWebhookToken,
+      ...discordEmbed
+    };
+  }
+
+  // Generic fallback
+  return isSuccess
+    ? {
+        event:        'checkout_ready',
+        status:       'success',
+        account:      acc,
+        zone:         zone,
+        message:      `🎫 Checkout ready | Account: ${acc} | Zone: ${zone} | Pay: ${checkoutUrl}`,
+        checkoutLink: checkoutUrl,
+        checkoutUrl:  checkoutUrl,
+        timestamp:    ts
+      }
+    : {
+        event:     'booking_failed',
+        status:    'failure',
+        account:   acc,
+        message:   `❌ Failed | Account: ${acc} | Error: ${errMsg}`,
+        error:     errMsg,
+        timestamp: ts
+      };
+}
+
+function detectWebhookType(url) {
+  if (!url) return null;
+  if (/discord(app)?\.com\/api\/webhooks/i.test(url))  return 'discord';
+  if (/inbox-api\.aycd\.io/i.test(url))                return 'aycd';
+  return 'generic';
+}
+
 async function notifyCheckout(page, zone) {
   const webhookUrl = cfg.webhook?.url;
-  if (!webhookUrl) { log('No webhook configured – skipping notification.'); return; }
+  const wtype      = detectWebhookType(webhookUrl);
+  if (!wtype) { log('No webhook configured – skipping notification.'); return; }
 
   await page.waitForLoadState('domcontentloaded').catch(() => {});
   await wait(800);
@@ -766,41 +835,10 @@ async function notifyCheckout(page, zone) {
   const checkoutUrl = page.url();
   await page.screenshot({ path: `checkout-${Date.now()}.png`, fullPage: true }).catch(() => {});
 
-  const acc       = getCreds().username;
-  const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(webhookUrl);
-
-  let payload;
-  if (isDiscord) {
-    payload = {
-      username: 'imethai bot',
-      content:  `🎫 **Ticket secured!**\nAccount: **${acc}**\nZone: **${zone}**\nClick to pay: ${checkoutUrl}`,
-      embeds: [{
-        title:       `Pay now — ${acc}`,
-        url:         checkoutUrl,
-        description: `**Account:** ${acc}\n**Zone:** ${zone}`,
-        color:       0x57F287,
-        timestamp:   new Date().toISOString(),
-        footer:      { text: 'imethai auto-booker' }
-      }]
-    };
-  } else {
-    // Generic format (AYCD Inbox / any other webhook service)
-    payload = {
-      event:       'checkout_ready',
-      status:      'success',
-      account:     acc,
-      username:    acc,
-      zone:        zone,
-      message:     `🎫 Checkout ready | Account: ${acc} | Zone: ${zone} | Pay: ${checkoutUrl}`,
-      checkoutLink: checkoutUrl,
-      checkoutUrl:  checkoutUrl,
-      timestamp:   new Date().toISOString()
-    };
-  }
-
+  const payload = buildWebhookPayload(wtype, { acc: getCreds().username, zone, checkoutUrl });
   try {
     const r = await postWebhook(webhookUrl, payload);
-    log(`Webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 200)}`);
+    log(`Webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 300)}`);
     log(`Checkout URL: ${checkoutUrl}`);
   } catch (e) {
     log('Webhook failed:', e.message);
@@ -810,24 +848,13 @@ async function notifyCheckout(page, zone) {
 
 async function notifyFailure(creds, errMsg) {
   const webhookUrl = cfg.webhook?.url;
-  if (!webhookUrl) return;
+  const wtype      = detectWebhookType(webhookUrl);
+  if (!wtype) return;
 
-  const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(webhookUrl);
-  const payload = isDiscord
-    ? { content: `❌ **${creds.username}** failed: ${errMsg}` }
-    : {
-        event:    'booking_failed',
-        status:   'failure',
-        account:  creds.username,
-        username: creds.username,
-        message:  `❌ Failed | Account: ${creds.username} | Error: ${errMsg}`,
-        error:    errMsg,
-        timestamp: new Date().toISOString()
-      };
-
+  const payload = buildWebhookPayload(wtype, { acc: creds.username, errMsg });
   try {
     const r = await postWebhook(webhookUrl, payload);
-    log(`Failure webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 200)}`);
+    log(`Failure webhook delivered (HTTP ${r.status}): ${r.body.slice(0, 300)}`);
   } catch (e) {
     log('Failure webhook error:', e.message);
   }
@@ -872,43 +899,60 @@ async function runForAccount(creds, idx, total) {
       await gotoBookingStep(page);
       await selectShowRound(page);
 
-      // ── Zone selection with OOS fallback ────────────────────────────────
-      const preferredZones = cfg.booking.preferredZones;
-      await waitForZoneMap(page);
+      // ── Zone selection: random order, retry forever until one has seats ─────
+      // Zones are shuffled each pass so no single zone gets starved.
+      // The loop runs until a zone is successfully entered (not OOS).
+      const preferredZones = [...cfg.booking.preferredZones];
+      let chosenZone   = null;
+      let zonePass     = 0;
 
-      let chosenZone = null;
-      for (let zi = 0; zi < preferredZones.length; zi++) {
-        const tryZone = preferredZones[zi];
+      while (!chosenZone) {
+        zonePass++;
 
-        // Re-navigate to zone map if this is a retry after OOS
-        if (zi > 0) {
-          log(`Navigating back to zone map for next zone (${zi + 1}/${preferredZones.length})...`);
-          await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-          await solveCaptchas(page).catch(() => {});
-          await wait(300);
-          await waitForZoneMap(page);
+        // Shuffle preferred zones for this pass (Fisher-Yates)
+        const shuffled = [...preferredZones];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
 
-        const submitted = await submitZone(page, tryZone);
-        if (!submitted) {
-          log(`Zone "${tryZone}" not on map – trying next.`);
-          continue;
+        log(`Zone pass #${zonePass} – trying order: [${shuffled.join(', ')}]`);
+
+        // Navigate to zone map (always refresh to get latest availability)
+        await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+        await solveCaptchas(page).catch(() => {});
+        await wait(300);
+        await waitForZoneMap(page);
+
+        for (const tryZone of shuffled) {
+          const submitted = await submitZone(page, tryZone);
+          if (!submitted) {
+            log(`  "${tryZone}" not on map – skipping.`);
+            // Navigate back to zone map to try next zone
+            await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
+            await wait(200);
+            continue;
+          }
+
+          const oos = await isOOS(page);
+          if (oos) {
+            log(`  ⚠ Seat OOS for zone "${tryZone}" – trying next.`);
+            // Navigate back to zone map for next zone
+            await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT }).catch(() => {});
+            await wait(200);
+            await waitForZoneMap(page).catch(() => {});
+            continue;
+          }
+
+          log(`  ✓ Zone "${tryZone}" has seats – proceeding.`);
+          chosenZone = tryZone;
+          break;
         }
 
-        const oos = await isOOS(page);
-        if (oos) {
-          log(`⚠ Seat OOS for zone "${tryZone}" – trying next preferred zone.`);
-          continue;
+        if (!chosenZone) {
+          log(`All [${shuffled.join(', ')}] OOS on pass #${zonePass} – retrying in ${RETRY_MS}ms...`);
+          await wait(RETRY_MS);
         }
-
-        chosenZone = tryZone;
-        break;
-      }
-
-      if (!chosenZone) {
-        throw new Error(
-          `All preferred zones OOS or unavailable: [${preferredZones.join(', ')}]`
-        );
       }
 
       await handleTicketSelection(page, cfg.booking.ticketCount);
