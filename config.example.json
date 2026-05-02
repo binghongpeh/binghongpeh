@@ -2,6 +2,8 @@
   "siteUrl":  "https://www.imethai.com/myaccount.php",
   "eventUrl": "https://www.imethai.com/2026_IOI_LOOP_in_Bkk/step.php",
 
+  "accountsFile": "accounts.txt",
+
   "credentials": {
     "username": "YOUR_USERNAME_OR_EMAIL",
     "password": "YOUR_PASSWORD"

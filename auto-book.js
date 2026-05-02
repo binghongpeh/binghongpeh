@@ -15,6 +15,7 @@
 const fs    = require('fs');
 const path  = require('path');
 const https = require('https');
+const { AsyncLocalStorage } = require('async_hooks');
 const { chromium } = require('playwright');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -29,8 +30,44 @@ const NAV_TIMEOUT = cfg.timing?.navTimeoutMs    ?? 30000;
 const POLL_MS     = cfg.timing?.pollIntervalMs  ?? 500;
 const RETRY_MS    = cfg.timing?.retryDelayMs    ?? 100;
 
-const log  = (...a) => console.log(`[${new Date().toISOString()}]`, ...a);
-const wait = ms    => new Promise(r => setTimeout(r, ms));
+// Per-account context (creds + log tag) stored via AsyncLocalStorage so all
+// helpers below transparently use the right account when running in parallel.
+const accountStore = new AsyncLocalStorage();
+function ctx()      { return accountStore.getStore() || { creds: cfg.credentials, tag: '' }; }
+function getCreds() { return ctx().creds; }
+
+const log = (...a) => {
+  const tag = ctx().tag;
+  if (tag) console.log(`[${new Date().toISOString()}] ${tag}`, ...a);
+  else      console.log(`[${new Date().toISOString()}]`, ...a);
+};
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+// ─── account loader ─────────────────────────────────────────────────────────
+
+function loadAccounts() {
+  const file = cfg.accountsFile || 'accounts.txt';
+  const fp   = path.join(__dirname, file);
+  if (!fs.existsSync(fp)) {
+    if (cfg.credentials?.username) {
+      log(`No ${file} found – using single account from config.json.`);
+      return [cfg.credentials];
+    }
+    throw new Error(`No accounts.txt and no credentials in config.json`);
+  }
+  const lines = fs.readFileSync(fp, 'utf-8').split(/\r?\n/);
+  const accounts = [];
+  for (const ln of lines) {
+    const t = ln.trim();
+    if (!t || t.startsWith('#')) continue;
+    const idx = t.indexOf(':');
+    if (idx < 1) { log(`Skipping malformed line: "${t}"`); continue; }
+    accounts.push({ username: t.slice(0, idx).trim(), password: t.slice(idx + 1).trim() });
+  }
+  if (!accounts.length) throw new Error(`${file} has no valid accounts`);
+  log(`Loaded ${accounts.length} account(s) from ${file}.`);
+  return accounts;
+}
 
 // ─── CapSolver (Cloudflare Turnstile / hCaptcha) ────────────────────────────
 
@@ -199,8 +236,8 @@ async function login(page) {
     throw new Error('Login fields not found – see debug-login.png');
   }
 
-  await userField.fill(cfg.credentials.username);
-  await passField.fill(cfg.credentials.password);
+  await userField.fill(getCreds().username);
+  await passField.fill(getCreds().password);
   await solveCaptchas(page);
 
   const submitBtn = await firstVisible(page, [
@@ -294,9 +331,9 @@ async function loginInline(page) {
   if (!userField || !passField) return false;
 
   await userField.fill('');
-  await userField.fill(cfg.credentials.username);
+  await userField.fill(getCreds().username);
   await passField.fill('');
-  await passField.fill(cfg.credentials.password);
+  await passField.fill(getCreds().password);
 
   const submitBtn = await firstVisible(page, [
     'button:has-text("LOGIN")', 'button:has-text("Login")',
@@ -318,7 +355,7 @@ async function loginInline(page) {
 
   if (!stillNeedsLogin) {
     log('========================================');
-    log(`  ✓ LOGIN SUCCESS (step.php) — ${cfg.credentials.username}`);
+    log(`  ✓ LOGIN SUCCESS (step.php) — ${getCreds().username}`);
     log('========================================');
     return true;
   }
@@ -696,23 +733,26 @@ async function notifyCheckout(page, zone) {
   // Discord webhook? Format as embed; otherwise send a plain JSON payload.
   const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(webhookUrl);
 
+  const acc = getCreds().username;
   const payload = isDiscord
     ? {
         username: 'imethai bot',
-        content:  `🎫 **Ticket secured!**\nZone: **${zone}**\nClick to pay: ${checkoutUrl}`,
+        content:  `🎫 **Ticket secured!**\nAccount: **${acc}**\nZone: **${zone}**\nClick to pay: ${checkoutUrl}`,
         embeds: [{
-          title:       'Complete payment',
+          title:       `Pay now — ${acc}`,
           url:         checkoutUrl,
-          description: `Zone: ${zone}\nUser: ${cfg.credentials.username}`,
+          description: `**Account:** ${acc}\n**Zone:** ${zone}`,
           color:       0x57F287,
-          timestamp:   new Date().toISOString()
+          timestamp:   new Date().toISOString(),
+          footer:      { text: 'imethai auto-booker' }
         }]
       }
     : {
         event:       'checkout_ready',
         status:      'success',
+        account:     acc,
+        username:    acc,
         zone:        zone,
-        username:    cfg.credentials.username,
         checkoutUrl: checkoutUrl,
         timestamp:   new Date().toISOString()
       };
@@ -725,56 +765,91 @@ async function notifyCheckout(page, zone) {
   }
 }
 
+// ─── per-account run ─────────────────────────────────────────────────────────
+
+async function runForAccount(creds, idx, total) {
+  const tag = `[${creds.username}]`;
+  return accountStore.run({ creds, tag }, async () => {
+    log(`Starting (${idx + 1}/${total})`);
+
+    const browser = await chromium.launch({
+      headless: !HEADED,
+      slowMo:   HEADED ? 60 : 0,
+      args: ['--disable-blink-features=AutomationControlled']
+    });
+
+    const context = await browser.newContext({
+      viewport:  { width: 1366, height: 900 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale:    'th-TH',
+      extraHTTPHeaders: { 'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8' }
+    });
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
+
+    const page = await context.newPage();
+    page.setDefaultTimeout(NAV_TIMEOUT);
+
+    try {
+      await login(page);
+      await gotoBookingStep(page);
+      await selectShowRound(page);
+      const chosenZone = await selectZone(page, cfg.booking.preferredZones);
+      await handleTicketSelection(page, cfg.booking.ticketCount);
+      await choosePickup(page, cfg.booking.pickupMethod);
+      await acceptTerms(page);
+      await solveCaptchas(page);
+      await clickNext(page);
+
+      log(`✓ SUCCESS – zone "${chosenZone}" booked.`);
+      await notifyCheckout(page, chosenZone);
+      log('Complete payment in the browser or via the webhook link.');
+
+      if (HEADED) {
+        log('Browser stays open 15 minutes for payment.');
+        await wait(15 * 60 * 1000);
+      }
+      return { ok: true, username: creds.username, zone: chosenZone };
+    } catch (err) {
+      log('✗ Automation failed:', err.message);
+      await page.screenshot({
+        path: `debug-final-${creds.username.replace(/[^a-z0-9]/gi, '_')}-${Date.now()}.png`,
+        fullPage: true
+      }).catch(() => {});
+      // Notify failure too so you know which account didn't make it
+      try {
+        const url = cfg.webhook?.url;
+        if (url) {
+          const isDiscord = /discord(app)?\.com\/api\/webhooks/i.test(url);
+          await postWebhook(url, isDiscord
+            ? { content: `❌ **${creds.username}** failed: ${err.message}` }
+            : { event: 'booking_failed', username: creds.username, error: err.message }
+          );
+        }
+      } catch {}
+      return { ok: false, username: creds.username, error: err.message };
+    } finally {
+      if (!HEADED) await browser.close();
+    }
+  });
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 
 (async () => {
+  const accounts = loadAccounts();
   await waitUntilOpen(cfg.timing?.openTimeISO, cfg.timing?.preOpenLeadMs);
 
-  const browser = await chromium.launch({
-    headless: !HEADED,
-    slowMo:   HEADED ? 60 : 0,
-    args: ['--disable-blink-features=AutomationControlled']
-  });
+  log(`Launching ${accounts.length} account(s) in parallel...`);
+  const results = await Promise.all(
+    accounts.map((creds, idx) => runForAccount(creds, idx, accounts.length))
+  );
 
-  const context = await browser.newContext({
-    viewport:  { width: 1366, height: 900 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    locale:    'th-TH',
-    extraHTTPHeaders: { 'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8' }
-  });
-
-  // Hide webdriver flag
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  });
-
-  const page = await context.newPage();
-  page.setDefaultTimeout(NAV_TIMEOUT);
-
-  try {
-    await login(page);
-    await gotoBookingStep(page);
-    await selectShowRound(page);
-    const chosenZone = await selectZone(page, cfg.booking.preferredZones);
-    await handleTicketSelection(page, cfg.booking.ticketCount);
-    await choosePickup(page, cfg.booking.pickupMethod);
-    await acceptTerms(page);
-    await solveCaptchas(page);
-    await clickNext(page);
-
-    log(`\n✓ SUCCESS – zone "${chosenZone}" booked.`);
-    await notifyCheckout(page, chosenZone);
-    log('Complete payment in the browser or via the webhook link.');
-
-    if (HEADED) {
-      log('Browser stays open for 15 minutes for payment.');
-      await wait(15 * 60 * 1000);
-    }
-  } catch (err) {
-    console.error('\n✗ Automation failed:', err.message);
-    await page.screenshot({ path: `debug-final-${Date.now()}.png`, fullPage: true }).catch(() => {});
-    process.exitCode = 1;
-  } finally {
-    if (!HEADED) await browser.close();
+  log('=== Summary ===');
+  for (const r of results) {
+    if (r.ok) log(`  ✓ ${r.username} → zone ${r.zone}`);
+    else      log(`  ✗ ${r.username} → ${r.error}`);
   }
+  process.exit(results.every(r => r.ok) ? 0 : 1);
 })();

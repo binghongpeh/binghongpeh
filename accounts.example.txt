@@ -1,0 +1,7 @@
+# One account per line, format: email:password
+# Lines starting with # or blank lines are ignored.
+# All accounts run in parallel, each in its own browser window.
+
+binghong2010@gmail.com:Binghong123@
+# second.account@gmail.com:Password2!
+# third.account@gmail.com:Password3!
