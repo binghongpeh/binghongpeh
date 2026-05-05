@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OAuth2 Diagnostic Tester</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --card: #ffffff;
+      --text: #1a202c;
+      --subtle: #718096;
+      --brand: #4a6cf7;
+      --brand-dark: #3451d1;
+      --border: #e2e8f0;
+      --ok: #38a169;
+      --warn: #d69e2e;
+      --err: #e53e3e;
+      --info: #3182ce;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px 16px;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; display: grid; gap: 18px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 24px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    h1 { font-size: 1.7rem; margin-bottom: 6px; }
+    h2 { font-size: 1.05rem; margin-bottom: 14px; color: var(--text); }
+    .subtitle { color: var(--subtle); font-size: 0.9rem; margin-bottom: 0; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label { font-size: 0.82rem; font-weight: 600; color: var(--subtle); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    input, select {
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 9px 12px;
+      font-size: 0.93rem;
+      color: var(--text);
+      background: #fafbfc;
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      outline: 2px solid var(--brand);
+      outline-offset: -1px;
+      background: #fff;
+    }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+    button {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-primary:hover { background: var(--brand-dark); }
+    .btn-secondary { background: #edf2f7; color: var(--text); }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-danger { background: #fff5f5; color: var(--err); border: 1px solid #fed7d7; }
+    .btn-danger:hover { background: #fed7d7; }
+
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Preset pills */
+    .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .preset-btn {
+      padding: 5px 13px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--subtle);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .preset-btn:hover, .preset-btn.active {
+      border-color: var(--brand);
+      color: var(--brand);
+      background: #ebf0ff;
+    }
+
+    /* Step list */
+    .steps { display: flex; flex-direction: column; gap: 10px; }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fafbfc;
+      transition: background 0.2s;
+    }
+
+    .step.running { background: #ebf8ff; border-color: #bee3f8; }
+    .step.pass    { background: #f0fff4; border-color: #9ae6b4; }
+    .step.fail    { background: #fff5f5; border-color: #fed7d7; }
+    .step.warn    { background: #fffff0; border-color: #faf089; }
+    .step.skip    { opacity: 0.5; }
+
+    .step-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      background: #e2e8f0;
+      color: var(--subtle);
+    }
+
+    .step.running .step-icon { background: #bee3f8; color: #2b6cb0; animation: pulse 1s infinite; }
+    .step.pass    .step-icon { background: #9ae6b4; color: #276749; }
+    .step.fail    .step-icon { background: #fed7d7; color: #9b2c2c; }
+    .step.warn    .step-icon { background: #faf089; color: #744210; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+    .step-body { flex: 1; }
+    .step-title { font-weight: 600; font-size: 0.93rem; margin-bottom: 3px; }
+    .step-detail { font-size: 0.82rem; color: var(--subtle); line-height: 1.5; }
+    .step.fail    .step-detail { color: #c53030; }
+    .step.pass    .step-detail { color: #276749; }
+    .step.warn    .step-detail { color: #744210; }
+
+    /* Token display */
+    .token-panel {
+      background: #1a202c;
+      color: #e2e8f0;
+      border-radius: 10px;
+      padding: 14px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      line-height: 1.6;
+      overflow-x: auto;
+      max-height: 320px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .token-key   { color: #76e4f7; }
+    .token-str   { color: #68d391; }
+    .token-num   { color: #f6ad55; }
+    .token-bool  { color: #fc8181; }
+
+    /* Summary banner */
+    .summary {
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .summary.pass { background: #f0fff4; color: var(--ok); border: 1px solid #9ae6b4; }
+    .summary.fail { background: #fff5f5; color: var(--err); border: 1px solid #fed7d7; }
+    .summary.idle { background: #ebf4ff; color: var(--info); border: 1px solid #bee3f8; }
+
+    /* Callback info box */
+    .info-box {
+      background: #ebf4ff;
+      border: 1px solid #bee3f8;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.85rem;
+      color: #2b6cb0;
+      line-height: 1.6;
+    }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+<main class="container">
+
+  <!-- Header -->
+  <div class="card">
+    <h1>OAuth2 Diagnostic Tester</h1>
+    <p class="subtitle">Configure your OAuth2 provider below and run step-by-step checks to identify what is or isn't working. No credentials are stored or sent anywhere except directly to your provider.</p>
+  </div>
+
+  <!-- Config -->
+  <div class="card">
+    <h2>1. Provider Configuration</h2>
+
+    <div class="presets" id="presets">
+      <button class="preset-btn" data-preset="microsoft">Microsoft / Azure AD</button>
+      <button class="preset-btn" data-preset="google">Google</button>
+      <button class="preset-btn" data-preset="github">GitHub</button>
+      <button class="preset-btn" data-preset="custom">Custom</button>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Authorization Endpoint URL</label>
+        <input id="authUrl" type="url" placeholder="https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize" />
+      </div>
+      <div class="form-group full">
+        <label>Token Endpoint URL</label>
+        <input id="tokenUrl" type="url" placeholder="https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token" />
+      </div>
+      <div class="form-group full">
+        <label>OpenID Discovery URL (optional — auto-fills endpoints)</label>
+        <input id="discoveryUrl" type="url" placeholder="https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration" />
+      </div>
+      <div class="form-group">
+        <label>Client ID (App ID)</label>
+        <input id="clientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+      </div>
+      <div class="form-group">
+        <label>Scope</label>
+        <input id="scope" value="openid profile email" />
+      </div>
+      <div class="form-group full">
+        <label>Redirect URI (must match your app registration)</label>
+        <input id="redirectUri" id="redirectUri" />
+      </div>
+    </div>
+
+    <hr class="divider" style="margin: 16px 0;" />
+    <div class="btn-row">
+      <button class="btn-secondary" id="fetchDiscoveryBtn">Fetch Discovery Document</button>
+      <button class="btn-primary"   id="runChecksBtn">Run Connectivity Checks</button>
+    </div>
+  </div>
+
+  <!-- Step-by-step checks -->
+  <div class="card">
+    <h2>2. Diagnostic Steps</h2>
+
+    <div id="summary" class="summary idle">
+      <span>&#x2139;</span> Configure your provider above and click "Run Connectivity Checks" to begin.
+    </div>
+
+    <div class="steps" id="steps" style="margin-top: 14px;">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- OAuth2 Flow (PKCE) -->
+  <div class="card">
+    <h2>3. Start OAuth2 Authorization Flow (PKCE)</h2>
+    <p style="font-size:0.88rem;color:var(--subtle);margin-bottom:14px;">
+      This initiates a real authorization code + PKCE flow. You will be redirected to the provider login page. After login, you are sent back here and the code is automatically exchanged for a token.
+    </p>
+
+    <div class="info-box" id="redirectInfo" style="margin-bottom:14px;">
+      Redirect URI will be set to: <strong id="currentRedirect">—</strong>
+      <br>Make sure this exact URL is registered as an allowed redirect URI in your OAuth2 app.
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="startFlowBtn">Start Authorization Flow</button>
+      <button class="btn-danger"  id="clearStateBtn">Clear Saved State</button>
+    </div>
+  </div>
+
+  <!-- Token Result -->
+  <div class="card" id="tokenCard" style="display:none;">
+    <h2>4. Token Result</h2>
+    <div id="tokenSummary" class="summary" style="margin-bottom:14px;"></div>
+    <div class="token-panel" id="tokenPanel"></div>
+    <div class="btn-row" style="margin-top: 12px;">
+      <button class="btn-secondary" id="decodeJwtBtn">Decode Access Token (JWT)</button>
+      <button class="btn-danger"    id="clearTokenBtn">Clear Token</button>
+    </div>
+  </div>
+
+  <!-- JWT Decode result -->
+  <div class="card" id="jwtCard" style="display:none;">
+    <h2>JWT Decoded Claims</h2>
+    <div class="token-panel" id="jwtPanel"></div>
+  </div>
+
+</main>
+
+<script>
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function $(id) { return document.getElementById(id); }
+
+function setRedirectDisplay() {
+  const uri = $('redirectUri').value || window.location.href.split('?')[0].split('#')[0];
+  $('currentRedirect').textContent = uri;
+}
+
+// PKCE helpers
+async function sha256(plain) {
+  const enc = new TextEncoder().encode(plain);
+  return crypto.subtle.digest('SHA-256', enc);
+}
+
+function base64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function generatePKCE() {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = base64url(await sha256(verifier));
+  return { verifier, challenge };
+}
+
+function randomState() {
+  return base64url(crypto.getRandomValues(new Uint8Array(16)));
+}
+
+// Pretty-print JSON with syntax highlighting
+function syntaxHL(obj) {
+  const json = JSON.stringify(obj, null, 2);
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    match => {
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) return `<span class="token-key">${match}</span>`;
+        return `<span class="token-str">${match}</span>`;
+      }
+      if (/true|false/.test(match)) return `<span class="token-bool">${match}</span>`;
+      if (/null/.test(match))        return `<span class="token-bool">${match}</span>`;
+      return `<span class="token-num">${match}</span>`;
+    }
+  );
+}
+
+// ─── Step renderer ────────────────────────────────────────────────────────────
+
+const STEP_DEFS = [
+  { id: 'discovery',  icon: '1', title: 'OpenID Discovery Document'     },
+  { id: 'authcheck',  icon: '2', title: 'Authorization Endpoint Reachable' },
+  { id: 'tokencheck', icon: '3', title: 'Token Endpoint Reachable'       },
+  { id: 'clientid',   icon: '4', title: 'Client ID Format'               },
+  { id: 'redirect',   icon: '5', title: 'Redirect URI Configured'        },
+  { id: 'pkce',       icon: '6', title: 'PKCE Support'                   },
+];
+
+const STATUS_ICON = { idle: '—', running: '...', pass: '✓', fail: '✗', warn: '!', skip: '–' };
+
+function buildSteps() {
+  const container = $('steps');
+  container.innerHTML = '';
+  STEP_DEFS.forEach(def => {
+    const el = document.createElement('div');
+    el.className = 'step';
+    el.id = 'step-' + def.id;
+    el.innerHTML = `
+      <div class="step-icon" id="icon-${def.id}">${def.icon}</div>
+      <div class="step-body">
+        <div class="step-title">${def.title}</div>
+        <div class="step-detail" id="detail-${def.id}">Waiting...</div>
+      </div>`;
+    container.appendChild(el);
+  });
+}
+
+function setStep(id, status, detail) {
+  const el       = $('step-' + id);
+  const iconEl   = $('icon-' + id);
+  const detailEl = $('detail-' + id);
+  el.className   = 'step ' + status;
+  iconEl.textContent = STATUS_ICON[status] ?? id;
+  detailEl.textContent = detail;
+}
+
+// ─── Fetch with timeout ───────────────────────────────────────────────────────
+
+async function fetchWithTimeout(url, opts = {}, ms = 8000) {
+  const ctrl = new AbortController();
+  const id   = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { ...opts, signal: ctrl.signal });
+    clearTimeout(id);
+    return res;
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+}
+
+// Try to probe an endpoint (no-cors so we at least detect network errors vs CORS)
+async function probeEndpoint(url) {
+  try {
+    // First try a real fetch (will fail with CORS usually, but we detect network errors)
+    const res = await fetchWithTimeout(url, { method: 'HEAD', mode: 'no-cors' });
+    return { ok: true, status: res.status || 'opaque (CORS)' };
+  } catch (e) {
+    if (e.name === 'AbortError') return { ok: false, error: 'Timeout (>8s)' };
+    if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError'))
+      return { ok: false, error: 'Network error — server unreachable or blocked by CORS policy' };
+    return { ok: false, error: e.message };
+  }
+}
+
+// ─── Discovery fetch ─────────────────────────────────────────────────────────
+
+async function fetchDiscovery(url) {
+  try {
+    const res = await fetchWithTimeout(url, { mode: 'cors' });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status} ${res.statusText}` };
+    const json = await res.json();
+    return { ok: true, data: json };
+  } catch (e) {
+    // CORS may block it from browser — note that
+    if (e.name === 'AbortError') return { ok: false, error: 'Timeout (>8s)' };
+    return { ok: false, error: e.message + ' (CORS may be blocking — this is normal for some providers from a browser)' };
+  }
+}
+
+// ─── Run all checks ───────────────────────────────────────────────────────────
+
+async function runChecks() {
+  buildSteps();
+  const summary  = $('summary');
+  summary.className = 'summary idle';
+  summary.innerHTML = '<span>&#8987;</span> Running checks...';
+
+  const authUrl    = $('authUrl').value.trim();
+  const tokenUrl   = $('tokenUrl').value.trim();
+  const discUrl    = $('discoveryUrl').value.trim();
+  const clientId   = $('clientId').value.trim();
+  const redirectUri = $('redirectUri').value.trim();
+
+  let passed = 0, failed = 0;
+
+  // Step 1 — Discovery
+  if (discUrl) {
+    setStep('discovery', 'running', 'Fetching discovery document...');
+    const res = await fetchDiscovery(discUrl);
+    if (res.ok) {
+      setStep('discovery', 'pass', 'Discovery document fetched. Endpoints confirmed.');
+      // Auto-fill endpoints if blank
+      if (!authUrl  && res.data.authorization_endpoint)  $('authUrl').value  = res.data.authorization_endpoint;
+      if (!tokenUrl && res.data.token_endpoint)           $('tokenUrl').value = res.data.token_endpoint;
+      passed++;
+    } else {
+      setStep('discovery', 'warn', 'Could not fetch: ' + res.error);
+    }
+  } else {
+    setStep('discovery', 'skip', 'No discovery URL provided — skipped.');
+  }
+
+  // Step 2 — Auth endpoint
+  const authVal = $('authUrl').value.trim();
+  if (authVal) {
+    setStep('authcheck', 'running', 'Probing authorization endpoint...');
+    const res = await probeEndpoint(authVal);
+    if (res.ok) {
+      setStep('authcheck', 'pass', `Reachable (status: ${res.status}).`);
+      passed++;
+    } else {
+      // For auth endpoints a CORS/opaque response is expected and actually means it IS reachable
+      if (res.error && res.error.includes('CORS')) {
+        setStep('authcheck', 'pass', 'Endpoint reachable (CORS restriction is normal for auth endpoints).');
+        passed++;
+      } else {
+        setStep('authcheck', 'fail', res.error);
+        failed++;
+      }
+    }
+  } else {
+    setStep('authcheck', 'warn', 'No authorization URL set.');
+    failed++;
+  }
+
+  // Step 3 — Token endpoint
+  const tokenVal = $('tokenUrl').value.trim();
+  if (tokenVal) {
+    setStep('tokencheck', 'running', 'Probing token endpoint...');
+    // POST with empty body to see if it replies (expect 400/401, not timeout/network error)
+    try {
+      const res = await fetchWithTimeout(tokenVal, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=authorization_code',
+        mode: 'cors'
+      });
+      // Any HTTP response (even 400) means the endpoint is alive
+      setStep('tokencheck', 'pass', `Endpoint alive — responded with HTTP ${res.status} (expected 4xx without valid params).`);
+      passed++;
+    } catch (e) {
+      if (e.message && e.message.includes('CORS')) {
+        setStep('tokencheck', 'warn', 'CORS blocked the probe. The endpoint may still work from your backend/server — test from there for certainty.');
+      } else {
+        setStep('tokencheck', 'fail', 'Endpoint unreachable: ' + e.message);
+        failed++;
+      }
+    }
+  } else {
+    setStep('tokencheck', 'warn', 'No token URL set.');
+    failed++;
+  }
+
+  // Step 4 — Client ID format
+  if (clientId) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRe.test(clientId)) {
+      setStep('clientid', 'pass', `Valid UUID format: ${clientId}`);
+      passed++;
+    } else if (clientId.length > 6) {
+      setStep('clientid', 'warn', 'Non-UUID format. This is valid for some providers (e.g., GitHub uses numeric IDs).');
+      passed++;
+    } else {
+      setStep('clientid', 'fail', 'Client ID looks too short or invalid.');
+      failed++;
+    }
+  } else {
+    setStep('clientid', 'fail', 'No Client ID provided.');
+    failed++;
+  }
+
+  // Step 5 — Redirect URI
+  const redir = redirectUri || window.location.href.split('?')[0];
+  if (redir) {
+    try {
+      const u = new URL(redir);
+      const isLocalhost = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+      const isHttps     = u.protocol === 'https:';
+      if (isHttps || isLocalhost) {
+        setStep('redirect', 'pass', `Redirect URI looks valid: ${redir}`);
+        passed++;
+      } else {
+        setStep('redirect', 'warn', `HTTP redirect URIs are rejected by most providers unless on localhost. Use HTTPS. Current: ${redir}`);
+      }
+    } catch {
+      setStep('redirect', 'fail', 'Redirect URI is not a valid URL.');
+      failed++;
+    }
+  } else {
+    setStep('redirect', 'fail', 'No redirect URI configured.');
+    failed++;
+  }
+
+  // Step 6 — PKCE support
+  if (window.crypto && window.crypto.subtle) {
+    setStep('pkce', 'pass', 'Browser supports Web Crypto API — PKCE flow is available.');
+    passed++;
+  } else {
+    setStep('pkce', 'fail', 'Web Crypto API not available. PKCE cannot run in this browser context (try HTTPS).');
+    failed++;
+  }
+
+  // Summary
+  if (failed === 0) {
+    summary.className = 'summary pass';
+    summary.innerHTML = `<span>&#10003;</span> All ${passed} checks passed — configuration looks correct.`;
+  } else {
+    summary.className = 'summary fail';
+    summary.innerHTML = `<span>&#10005;</span> ${failed} check(s) failed, ${passed} passed. Review the steps above.`;
+  }
+}
+
+// ─── Discovery auto-fill button ───────────────────────────────────────────────
+
+$('fetchDiscoveryBtn').addEventListener('click', async () => {
+  const url = $('discoveryUrl').value.trim();
+  if (!url) { alert('Enter a discovery URL first.'); return; }
+  $('fetchDiscoveryBtn').disabled = true;
+  $('fetchDiscoveryBtn').textContent = 'Fetching...';
+  const res = await fetchDiscovery(url);
+  $('fetchDiscoveryBtn').disabled = false;
+  $('fetchDiscoveryBtn').textContent = 'Fetch Discovery Document';
+  if (res.ok) {
+    if (res.data.authorization_endpoint) $('authUrl').value  = res.data.authorization_endpoint;
+    if (res.data.token_endpoint)          $('tokenUrl').value = res.data.token_endpoint;
+    alert('Discovery document fetched. Endpoints auto-filled.');
+  } else {
+    alert('Failed: ' + res.error);
+  }
+});
+
+$('runChecksBtn').addEventListener('click', runChecks);
+
+// ─── Presets ─────────────────────────────────────────────────────────────────
+
+const PRESETS = {
+  microsoft: {
+    discoveryUrl: 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
+    authUrl:      'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    tokenUrl:     'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    scope:        'openid profile email',
+  },
+  google: {
+    discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+    authUrl:      'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl:     'https://oauth2.googleapis.com/token',
+    scope:        'openid profile email',
+  },
+  github: {
+    discoveryUrl: '',
+    authUrl:      'https://github.com/login/oauth/authorize',
+    tokenUrl:     'https://github.com/login/oauth/access_token',
+    scope:        'read:user user:email',
+  },
+  custom: {
+    discoveryUrl: '',
+    authUrl:      '',
+    tokenUrl:     '',
+    scope:        'openid profile email',
+  },
+};
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+    $('discoveryUrl').value = p.discoveryUrl;
+    $('authUrl').value      = p.authUrl;
+    $('tokenUrl').value     = p.tokenUrl;
+    $('scope').value        = p.scope;
+  });
+});
+
+// ─── PKCE Flow ────────────────────────────────────────────────────────────────
+
+async function startFlow() {
+  const authUrl    = $('authUrl').value.trim();
+  const clientId   = $('clientId').value.trim();
+  const scope      = $('scope').value.trim();
+  const redirectUri = $('redirectUri').value.trim() || window.location.href.split('?')[0];
+
+  if (!authUrl)   { alert('Authorization URL is required.'); return; }
+  if (!clientId)  { alert('Client ID is required.'); return; }
+
+  const { verifier, challenge } = await generatePKCE();
+  const state = randomState();
+
+  sessionStorage.setItem('oauth2_verifier',     verifier);
+  sessionStorage.setItem('oauth2_state',        state);
+  sessionStorage.setItem('oauth2_redirect_uri', redirectUri);
+  sessionStorage.setItem('oauth2_token_url',    $('tokenUrl').value.trim());
+  sessionStorage.setItem('oauth2_client_id',    clientId);
+
+  const params = new URLSearchParams({
+    response_type:         'code',
+    client_id:             clientId,
+    redirect_uri:          redirectUri,
+    scope,
+    state,
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+  });
+
+  window.location.href = authUrl + '?' + params.toString();
+}
+
+$('startFlowBtn').addEventListener('click', startFlow);
+
+$('clearStateBtn').addEventListener('click', () => {
+  ['oauth2_verifier','oauth2_state','oauth2_redirect_uri','oauth2_token_url','oauth2_client_id'].forEach(k => sessionStorage.removeItem(k));
+  alert('Saved PKCE state cleared.');
+});
+
+// ─── Callback handler ─────────────────────────────────────────────────────────
+
+async function handleCallback() {
+  const params   = new URLSearchParams(window.location.search);
+  const code     = params.get('code');
+  const state    = params.get('state');
+  const error    = params.get('error');
+  const errorDesc = params.get('error_description');
+
+  if (error) {
+    showTokenCard('fail', 'Authorization failed: ' + error + (errorDesc ? ' — ' + errorDesc : ''), { error, error_description: errorDesc });
+    cleanUrl();
+    return;
+  }
+
+  if (!code) return; // Not a callback
+
+  const savedState    = sessionStorage.getItem('oauth2_state');
+  const verifier      = sessionStorage.getItem('oauth2_verifier');
+  const redirectUri   = sessionStorage.getItem('oauth2_redirect_uri');
+  const tokenUrl      = sessionStorage.getItem('oauth2_token_url');
+  const clientId      = sessionStorage.getItem('oauth2_client_id');
+
+  if (!verifier || !tokenUrl || !clientId) {
+    showTokenCard('fail', 'Missing saved PKCE state — was the page refreshed mid-flow?', { code });
+    cleanUrl();
+    return;
+  }
+
+  if (state !== savedState) {
+    showTokenCard('fail', 'State mismatch — possible CSRF. Do not use this token.', { received_state: state, expected_state: savedState });
+    cleanUrl();
+    return;
+  }
+
+  // Exchange code for token
+  showTokenCard('running', 'Exchanging authorization code for token...', null);
+
+  const body = new URLSearchParams({
+    grant_type:    'authorization_code',
+    code,
+    redirect_uri:  redirectUri,
+    client_id:     clientId,
+    code_verifier: verifier,
+  });
+
+  try {
+    const res  = await fetchWithTimeout(tokenUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body:    body.toString(),
+      mode:    'cors',
+    }, 15000);
+
+    const json = await res.json();
+
+    if (json.access_token || json.id_token) {
+      showTokenCard('pass', 'Token received successfully. OAuth2 flow is working.', json);
+    } else {
+      showTokenCard('fail', `Token exchange failed (HTTP ${res.status}).`, json);
+    }
+  } catch (e) {
+    showTokenCard('fail', 'Token exchange request failed: ' + e.message + '. Note: some providers block token exchange from browsers (CORS). Use a backend for production.', { error: e.message });
+  }
+
+  // Clear sensitive PKCE state
+  ['oauth2_verifier','oauth2_state'].forEach(k => sessionStorage.removeItem(k));
+  cleanUrl();
+}
+
+function cleanUrl() {
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+function showTokenCard(status, message, data) {
+  $('tokenCard').style.display = '';
+  const sum = $('tokenSummary');
+  if (status === 'pass')    { sum.className = 'summary pass'; sum.innerHTML = '<span>&#10003;</span> ' + message; }
+  else if (status === 'fail') { sum.className = 'summary fail'; sum.innerHTML = '<span>&#10005;</span> ' + message; }
+  else                      { sum.className = 'summary idle'; sum.innerHTML = '<span>&#8987;</span> ' + message; }
+
+  if (data) {
+    $('tokenPanel').innerHTML = syntaxHL(data);
+  } else {
+    $('tokenPanel').textContent = '';
+  }
+  $('tokenCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+$('clearTokenBtn').addEventListener('click', () => {
+  $('tokenCard').style.display = 'none';
+  $('jwtCard').style.display   = 'none';
+});
+
+// ─── JWT decode ───────────────────────────────────────────────────────────────
+
+$('decodeJwtBtn').addEventListener('click', () => {
+  const panel = $('tokenPanel').textContent;
+  let token;
+  try {
+    const obj = JSON.parse(panel);
+    token = obj.access_token || obj.id_token;
+  } catch { return; }
+
+  if (!token) { alert('No access_token or id_token found in the response.'); return; }
+
+  try {
+    const parts  = token.split('.');
+    if (parts.length < 3) { alert('Token does not appear to be a JWT.'); return; }
+    const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+    if (payload.exp) payload._exp_local = new Date(payload.exp * 1000).toLocaleString();
+    if (payload.iat) payload._iat_local = new Date(payload.iat * 1000).toLocaleString();
+    $('jwtPanel').innerHTML = syntaxHL(payload);
+    $('jwtCard').style.display = '';
+    $('jwtCard').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    alert('Could not decode JWT: ' + e.message);
+  }
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+// Set default redirect URI to current page
+$('redirectUri').value = window.location.href.split('?')[0].split('#')[0];
+setRedirectDisplay();
+$('redirectUri').addEventListener('input', setRedirectDisplay);
+
+buildSteps();
+handleCallback(); // Check if we're returning from an OAuth2 redirect
+</script>
+</body>
+</html>
