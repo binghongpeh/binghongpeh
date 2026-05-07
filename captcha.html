@@ -268,6 +268,15 @@
     </button>
   </div>
   <p class="protect-note">This verification helps protect against automated access.</p>
+
+  <hr style="margin:18px 0;border:none;border-top:1px solid #e7efef;">
+  <h2 style="font-size:16px;color:#1a1a2e;margin-bottom:8px;">Slice Puzzle Solver (Demo)</h2>
+  <p style="font-size:12px;color:#666;margin-bottom:10px;">
+    Upload horizontal image slices and click solve. The demo compares edge pixels and tries all permutations.
+  </p>
+  <input id="slice-input" type="file" accept="image/*" multiple style="width:100%;margin-bottom:8px;">
+  <button class="verify-btn" id="solve-slices-btn" style="padding:10px 12px;font-size:14px;">Solve Slice Order</button>
+  <div id="slice-order-out" style="font-size:12px;color:#555;margin-top:8px;min-height:16px;"></div>
 </div>
 
 <!-- Result overlay -->
@@ -573,6 +582,95 @@ document.getElementById('info-btn').addEventListener('click', () => {
 // ─── Init ────────────────────────────────────────────────────────────────────
 buildClockFace();
 generateChallenge();
+
+// ─── Slice puzzle solver demo ───────────────────────────────────────────────
+function permute(arr) {
+  if (arr.length <= 1) return [arr];
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const head = arr[i];
+    const tail = arr.slice(0, i).concat(arr.slice(i + 1));
+    for (const p of permute(tail)) out.push([head, ...p]);
+  }
+  return out;
+}
+
+function edgeRows(imageData, width, height) {
+  const top = new Array(width * 4);
+  const bottom = new Array(width * 4);
+  for (let x = 0; x < width * 4; x++) {
+    top[x] = imageData[x];
+    bottom[x] = imageData[(height - 1) * width * 4 + x];
+  }
+  return { top, bottom };
+}
+
+function matchScore(sliceA, sliceB) {
+  let mse = 0;
+  const len = sliceA.bottom.length;
+  for (let i = 0; i < len; i++) {
+    const d = sliceA.bottom[i] - sliceB.top[i];
+    mse += d * d;
+  }
+  mse /= len;
+  return -mse;
+}
+
+async function loadSlice(file) {
+  const img = await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); resolve(im); };
+    im.onerror = reject;
+    im.src = url;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, img.width, img.height).data;
+  return edgeRows(data, img.width, img.height);
+}
+
+async function solveSlices(files) {
+  const slices = await Promise.all(Array.from(files).map(loadSlice));
+  const idx = slices.map((_, i) => i);
+  let bestOrder = null;
+  let bestScore = -Infinity;
+
+  for (const p of permute(idx)) {
+    let score = 0;
+    for (let i = 0; i < p.length - 1; i++) {
+      score += matchScore(slices[p[i]], slices[p[i + 1]]);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestOrder = p;
+    }
+  }
+  return bestOrder;
+}
+
+document.getElementById('solve-slices-btn').addEventListener('click', async () => {
+  const input = document.getElementById('slice-input');
+  const out = document.getElementById('slice-order-out');
+  if (!input.files || input.files.length < 2) {
+    out.textContent = 'Please upload at least 2 slices.';
+    return;
+  }
+  if (input.files.length > 8) {
+    out.textContent = 'For demo performance, please use 8 slices or fewer.';
+    return;
+  }
+  out.textContent = 'Solving...';
+  try {
+    const order = await solveSlices(input.files);
+    out.textContent = `Best order (0-based): (${order.join(', ')})`;
+  } catch (e) {
+    out.textContent = `Could not solve slices: ${e.message || e}`;
+  }
+});
 </script>
 </body>
 </html>
