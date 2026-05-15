@@ -274,16 +274,15 @@ async function waitForBuyTicketButton(page) {
     } catch { /* network hiccup — keep trying */ }
 
     const href = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll('a[href]'));
-      // Prefer a link that goes to step.php AND has buy-ticket text
-      const preferred = links.find(a =>
-        /step\.php/i.test(a.getAttribute('href') || '') &&
-        /ซื้อบัตร|buy.?ticket/i.test((a.textContent || '').trim())
-      );
-      if (preferred) return preferred.href;
-      // Fall back to any link to step.php (sale may use different wording)
-      const fallback = links.find(a => /step\.php/i.test(a.getAttribute('href') || ''));
-      return fallback ? fallback.href : null;
+      // 1. Exact match: <a class="button_buy" href="...step.php">
+      const exact = document.querySelector('a.button_buy[href*="step.php"]');
+      if (exact) return exact.href;
+      // 2. Any link to step.php with buy-ticket text (handles class renames)
+      const links = Array.from(document.querySelectorAll('a[href*="step.php"]'));
+      const byText = links.find(a => /ซื้อบัตร|buy.?ticket/i.test(a.textContent || ''));
+      if (byText) return byText.href;
+      // 3. Any link to step.php as last resort
+      return links.length ? links[0].href : null;
     }).catch(() => null);
 
     if (href) {
