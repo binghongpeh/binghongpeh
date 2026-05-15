@@ -262,14 +262,65 @@ async function login(page) {
 
 // ─── step 2: navigate to booking step ───────────────────────────────────────
 
+// If cfg.landingUrl is set, refresh it every second until the "Buy Ticket"
+// link pointing to step.php appears, then navigate there immediately and
+// store the resolved URL in cfg.eventUrl for the zone-retry loops.
+async function waitForBuyTicketButton(page) {
+  log(`watching landing page for "Buy Ticket" button...`);
+  let loggedCount = 0;
+  while (true) {
+    try {
+      await page.goto(cfg.landingUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+    } catch { /* network hiccup — keep trying */ }
+
+    const href = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a[href]'));
+      // Prefer a link that goes to step.php AND has buy-ticket text
+      const preferred = links.find(a =>
+        /step\.php/i.test(a.getAttribute('href') || '') &&
+        /ซื้อบัตร|buy.?ticket/i.test((a.textContent || '').trim())
+      );
+      if (preferred) return preferred.href;
+      // Fall back to any link to step.php (sale may use different wording)
+      const fallback = links.find(a => /step\.php/i.test(a.getAttribute('href') || ''));
+      return fallback ? fallback.href : null;
+    }).catch(() => null);
+
+    if (href) {
+      log(`"Buy Ticket" found → ${href}`);
+      cfg.eventUrl = href; // zone-retry loops reuse this URL
+      try {
+        await page.goto(href, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+      } catch { /* already navigating */ }
+      return;
+    }
+
+    loggedCount++;
+    if (loggedCount === 1 || loggedCount % 10 === 0) {
+      log(`sale not open yet (${loggedCount}s elapsed), refreshing...`);
+    }
+    await wait(1000);
+  }
+}
+
 async function gotoBookingStep(page) {
   log('→ booking step');
 
+  // Landing-page mode: poll until "Buy Ticket" link appears, then follow it.
+  // This replaces the static eventUrl navigation for the very first visit.
+  if (cfg.landingUrl) {
+    await waitForBuyTicketButton(page);
+    // page is now on step.php (or redirecting to it); fall through to login check
+  }
+
   const MAX_RETRIES = 1200;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
-    } catch { /* retry */ }
+    // Skip navigation if we're already on step.php (arrived via buy-ticket click)
+    if (!/step\.php/i.test(page.url())) {
+      try {
+        await page.goto(cfg.eventUrl, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+      } catch { /* retry */ }
+    }
     await solveCaptchas(page).catch(() => {});
     await wait(150);
 
