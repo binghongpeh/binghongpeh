@@ -1,7 +1,7 @@
 {
   "siteUrl":    "https://www.imethai.com/myaccount.php",
-  "landingUrl": "https://www.imethai.com/2026_IOI_LOOP_in_Bkk/",
-  "eventUrl":   "https://www.imethai.com/2026_IOI_LOOP_in_Bkk/step.php",
+  "landingUrl": "https://www.imethai.com/index_ioi_landing.html",
+  "eventUrl":   null,
 
   "accountsFile": "accounts.txt",
 

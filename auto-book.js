@@ -23,6 +23,11 @@ if (!fs.existsSync(CONFIG_PATH)) {
 }
 const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
 
+if (!cfg.landingUrl && !cfg.eventUrl) {
+  console.error('config.json must have at least "landingUrl" or "eventUrl" set.');
+  process.exit(1);
+}
+
 // Re-read just the live-tunable parts of config.json from disk.
 // Lets you edit maxRow / maxSeatNum / preferredZones / ticketCount /
 // pickupMethod / agreeTerms while the bot is running — no restart needed.
@@ -262,9 +267,10 @@ async function login(page) {
 
 // ─── step 2: navigate to booking step ───────────────────────────────────────
 
-// If cfg.landingUrl is set, refresh it every second until the "Buy Ticket"
-// link pointing to step.php appears, then navigate there immediately and
-// store the resolved URL in cfg.eventUrl for the zone-retry loops.
+// Refresh cfg.landingUrl every second until the "Buy Ticket" button appears,
+// then navigate to it and store the resolved step.php URL in cfg.eventUrl.
+// If cfg.eventUrl is already set it acts as an emergency bypass — the user
+// can navigate there directly if the landing button never shows up.
 async function waitForBuyTicketButton(page) {
   log(`watching landing page for "Buy Ticket" button...`);
   let loggedCount = 0;
@@ -287,7 +293,7 @@ async function waitForBuyTicketButton(page) {
 
     if (href) {
       log(`"Buy Ticket" found → ${href}`);
-      cfg.eventUrl = href; // zone-retry loops reuse this URL
+      cfg.eventUrl = href; // zone-retry loops use this; overwrites emergency fallback if set
       try {
         await page.goto(href, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
       } catch { /* already navigating */ }
@@ -305,11 +311,11 @@ async function waitForBuyTicketButton(page) {
 async function gotoBookingStep(page) {
   log('→ booking step');
 
-  // Landing-page mode: poll until "Buy Ticket" link appears, then follow it.
-  // This replaces the static eventUrl navigation for the very first visit.
+  // Normal mode: landingUrl set → poll for Buy Ticket button, then proceed.
+  // Emergency mode: landingUrl blank + eventUrl set → go directly to step.php.
   if (cfg.landingUrl) {
     await waitForBuyTicketButton(page);
-    // page is now on step.php (or redirecting to it); fall through to login check
+    // cfg.eventUrl is now set; page is already navigating to step.php
   }
 
   const MAX_RETRIES = 1200;
